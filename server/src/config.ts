@@ -15,10 +15,10 @@ type ServerConfig = {
 
 const port = Number(process.env.PORT ?? '4000');
 const mongoUri = process.env.MONGODB_URI ?? '';
-const mongoDbName = process.env.MONGODB_DB_NAME ?? 'leftys';
-const googleGeminiModel = process.env.GOOGLE_GEMINI_MODEL ?? 'gemini-1.5-flash';
+const mongoDbName = process.env.MONGODB_DB_NAME ?? '';
+const googleGeminiModel = process.env.GOOGLE_GEMINI_MODEL ?? 'gemini-2.5-flash-image-preview';
 
-if (!mongoUri) {
+if (!mongoUri || !mongoDbName) {
   throw new Error('MONGODB_URI is required. Set it in server/.env or your environment before starting the API.');
 }
 

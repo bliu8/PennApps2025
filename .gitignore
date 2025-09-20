@@ -1,0 +1,39 @@
+node_modules/
+expo-env.d.ts
+
+# ENV
+.env
+frontend/.env
+backend/.env
+server/.env
+
+# OS/IDE
+.DS_Store
+.vscode/
+
+# PYTHON
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+.venv/
+venv/
+ENV/
+env/

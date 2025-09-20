@@ -10,9 +10,6 @@
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
-      "config": {
-        "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_API_KEY"
-      },
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Leftys to scan packaged food labels.",
         "NSPhotoLibraryUsageDescription": "Allow Leftys to access your photo library when uploading receipts and packaging labels.",
@@ -27,12 +24,7 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false,
-      "config": {
-        "googleMaps": {
-          "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_API_KEY"
-        }
-      }
+      "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
@@ -57,12 +49,6 @@
         {
           "photosPermission": "Allow Leftys to access your photo library to attach receipts and packaging labels.",
           "cameraPermission": "Allow Leftys to use the camera to scan packaged food labels."
-        }
-      ],
-      [
-        "react-native-maps",
-        {
-          "useGoogleMaps": true
         }
       ]
     ],

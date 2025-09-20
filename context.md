@@ -1,113 +1,101 @@
-# Leftys — Project Context (High‑Level)
+# Leftys — Project Context (Personal Inventory MVP)
 
 > Read this first. It explains what Leftys is, who it serves, why it exists, and the core rules that shape implementation. Agentic systems should combine this with `agents.md` and the API contracts when generating code.
 
 ## One‑liner
 
-**Leftys** is a lightweight, neighborhood food‑sharing app: people **post surplus packaged food**, nearby neighbors **claim and pick up**, and the app nudges everyone toward **less waste**.
+**Leftys** helps you reduce food waste by tracking what you have, auto‑estimating expiry, and nudging you at the right time with simple meal ideas.
 
 ## Problem & Insight
 
-* **Problem:** Tons of edible food is discarded while people nearby could use it. There’s no ultra‑simple, safety‑conscious way for everyday neighbors to give/receive small surplus items quickly.
-* **Insight:** If posting is camera‑first and claiming is map‑first—with clear pickup windows, privacy by default, and minimal rules—neighbors will actually use it. Lightweight nudges beat lectures.
+- **Problem:** People forget what’s in the fridge and let items expire. Tracking is tedious; reminders arrive at the wrong time.
+- **Insight:** If entry is lightweight, expiry is auto‑estimated (but overridable), and nudges arrive near lunch/dinner, people will act and waste less.
 
 ## Target Users
 
-* **Giver (Owner):** Has extra packaged food (e.g., snacks, sealed groceries), wants it gone quickly and safely.
-* **Receiver (Claimer):** Nearby neighbor who wants free food with minimal friction.
-* **Moderator (implicit):** Simple report/block tools; no heavy ops.
+- **Individual user (single account):** Personal pantry/fridge tracking. No sharing, no geo.
 
 ## Value Proposition
 
-* **For givers:** Quick declutter; feel‑good impact; no awkward haggling; safe & simple rules.
-* **For receivers:** Hyperlocal, low‑effort, real‑time access to useful items.
-* **For the community:** Less food waste; small, frequent wins → habit formation.
+- **Save food, save money:** Use items on time.
+- **Just‑in‑time nudges:** Lunch and dinner suggestions that fit your preferences.
+- **Positive reinforcement:** Friendly stats to keep momentum.
 
 ## Core Experience (MVP)
 
-1. **Create Post** (photo → title → allergens → pickup window → approx location → publish)
-2. **Discover** (map/list with approximate pins; filters by distance and allergens)
-3. **Claim** (request → owner accepts one; exact pickup revealed)
-4. **Pickup & Close** (reminder near end; owner marks picked up; post disappears)
-5. **Nudges** (simple stats like items shared, \$ saved)
+1. **Add item** (name, quantity, unit, input date, estimated expiry [auto, overridable], estimated cost [optional]).
+2. **See stats** (all‑time items rescued; estimated food waste reduced).
+3. **Get nudges**: Notifications scheduled for lunch (11:30–13:30) and dinner (17:30–19:30) in the user’s timezone, with quiet hours respected (21:00–08:00). We schedule earlier and re‑check right before sending.
+4. **Partial consumption**: Reduce remaining quantity with decimals; item remains until fully used or discarded.
 
 ## Non‑Goals (MVP)
 
-* Fridge/expiry tracking; multi‑item image parsing; social feeds; complex gamification; marketplace payments; home‑cooked meals.
+- No neighborhood sharing, maps, geo, claims, chat.
+- No image storage or uploads.
+- No complex recipe flows; suggestions are simple and optional.
 
-## Trust, Safety, and Privacy (must‑reads)
+## Trust, Safety, and Privacy
 
-* **Allowed items (MVP):** Packaged/sealed food only. No home‑cooked items. No raw meat/fish. No baby food/formula. Items should be safe to transport and exchange in public.
-* **Allergens:** User‑entered tags are the only source of truth. AI outputs are suggestions only and must be labeled as such.
-* **Safety claims:** The app **never** certifies safety/freshness. Show a clear disclaimer before first post/claim.
-* **Location privacy:** Show **approximate** location (geohash5) until a claim is **accepted**. Exact pickup is revealed only to the accepted claimer and the owner.
-* **Meetup guidance:** Encourage public pickup locations. Provide quick suggestions (library, grocery entrance, etc.).
-* **Abuse controls:** Report/Block; light strike system; rate limiting; auto‑hide if repeated issues.
+- **No safety claims:** The app never certifies food safety/freshness. Suggestions are ideas only; users must verify freshness.
+- **Privacy:** No exact location sharing; single‑user account. No special PII constraints beyond Auth0.
+- **Dietary preferences:** Collected during onboarding (preferences and allergens) and respected in suggestions.
 
 ## Business Rules (summary)
 
-* Max **3 open** postings per user.
-* A claimer may have **1 active reserved** item at a time.
-* **Pickup window** required; `expires_at = pickup_window.end`.
-* Auto‑release reserved items if no pickup by `claim_deadline` (e.g., +45m).
-* Auto‑expire open items at `expires_at`.
-* Nearby notifications radius default **2km** (configurable).
+- **Auto‑estimate expiry:** Derived from category heuristics; user can override before saving.
+- **Units (MVP):** `g, kg, oz, lb, ml, L, pieces`; decimals allowed for quantities.
+- **Save definition:** A “saved/rescued” item is one the user marks as used on its last estimated day. Used earlier counts as used but not rescued.
+- **Notifications:** Lunch 11:30–13:30; Dinner 17:30–19:30; Quiet hours 21:00–08:00; daily cap 2. Schedule ahead; re‑validate urgency before send.
+- **Dietary guardrails:** Suggestions must avoid user‑marked allergens and respect dietary restrictions.
 
 ## Metrics (MVP)
 
-* **Items shared** (count picked\_up)
-* **Pickup rate** (% picked\_up vs. expired/canceled)
-* **Estimated \$ saved** (static heuristic per category)
-* **Time‑to‑claim**
+- **Items rescued (all‑time)** — count of items used on their last day.
+- **Estimated food waste reduced (all‑time)** — category‑based weight heuristics × rescued items.
 
 ## Architecture Overview
 
-* **Mobile App (Expo/TS):** Screens for Map/List, Create Post, Details, Claims, Chat, Profile. Registers for push tokens.
-* **Backend (Node/Express):** Auth middleware; REST endpoints for postings, claims, messages, uploads, notifications, AI extract. Emits events.
-* **Database (MongoDB Atlas):** Collections for `accounts`, `postings`, `claims`, `messages`; 2dsphere index for geo; TTL/expiry strategy; unique phone index.
-* **Storage (S3/R2/Supabase):** Presigned uploads; EXIF strip; serve optimized images.
-* **Push (Expo):** Fan‑out on post create; claim/reminder notifications.
-* **AI (Gemini):** Optional suggestions for title/allergens. Server‑side only; never expiry; confidence thresholds.
+- **Mobile App (Expo/TS):** Tabs remain; primary experiences are Stats and Scan/Add. Settings available as a modal/route. Bright, friendly UI (green primary), modern yet playful typography, light and performant animations.
+- **Backend (Python/FastAPI):** Auth0 JWT; endpoints for inventory CRUD, partial consumption, stats, and push token registration. Emits events for analytics and notification scheduling.
+- **Microservice (Suggestions/Notifications):** REST/JSON. Generates simple meal ideas based on inventory and user profile; plans notifications within lunch/dinner windows and re‑checks right before send.
+- **Database (MongoDB Atlas):** Collections: `accounts`, `inventory_items`, `suggestions`, `notifications`, `analytics_daily`.
+- **Push (Expo):** Local‑time scheduling, receipts handling, quiet hours.
 
 ## Data Highlights
 
-* **`postings.location`** stores exact coordinates; UI blurs via `approx_geohash5` until acceptance.
-* **`status`**: `open | reserved | picked_up | expired | canceled`.
-* **`claims`** are separate docs to support multi‑claimer queues.
-* **Indexes:** `postings.location` (2dsphere), `postings.status+expires_at`, `accounts.phone` (unique).
+- **`inventory_items`**: `{ _id, owner_id, name, quantity, unit, input_date, est_expiry_date, est_cost, dietary_tags?, allergens?, remaining_quantity }`.
+- **`accounts`**: `{ _id, auth0_id, dietary_preferences[], allergens[] }`.
+- **Indexes:** `inventory_items.owner_id+est_expiry_date`, `accounts.auth0_id` (unique).
 
 ## Error Philosophy
 
-* **Predictable JSON errors** with `{ code, message }` (e.g., `VALIDATION_ERROR`, `RATE_LIMITED`).
-* Fail fast on policy violations (home‑cooked, missing pickup window, unsafe items).
+- Predictable JSON errors `{ code, message }` (e.g., `VALIDATION_ERROR`, `RATE_LIMITED`).
+- Validate units, positive quantities, and future‑dated expiries (unless explicitly overridden earlier).
 
 ## Why this will demo well (hackathon)
 
-* Clear story: waste → share → impact.
-* Tangible mobile UX: camera post, map pins, claim flow, push reminders.
-* Sponsor tech visible: Gemini assists; Mongo geospatial; Expo push.
-* Safety/privacy handled with obvious defaults (blurred map, disclaimers).
+- Simple story: track → nudge → rescue → feel good.
+- Tangible UX: add an item, get a timely nudge, mark as used, watch stats grow.
+- Sponsor tech visible: Auth0, Mongo, Expo push, Gemini‑backed suggestions (via microservice).
 
 ## Future Roadmap (post‑MVP)
 
-* Fridge/expiry tab; multi‑item parsing; clustering & server tiles; richer reputation; quiet hours & digests; image moderation; community stats & badges; suggested public pickup hubs.
+- Barcode and receipt OCR ingestion; richer price heuristics and “money saved”.
+- Households/shared inventory; digests; badges and milestones.
+- Deeper recipes (steps, pantry substitutions), storage tips, category auto‑classification.
 
 ## Glossary
 
-* **Owner/Giver:** User who created the posting.
-* **Claimer/Receiver:** User who requests and is accepted to pick up an item.
-* **Reserved:** Posting accepted by an owner for a specific claimer; not yet picked up.
-* **Claim deadline:** Time window after reserve before auto‑release.
-* **Expire:** Auto‑close of an open posting when pickup window ends.
+- **Rescued:** Item used on its last estimated day.
+- **Quiet hours:** Times when we will not send push notifications.
+- **Nudge:** A suggestion or reminder to use items soon.
 
 ## Assumptions
 
-* Users have smartphones and can meet at public locations.
-* Neighborhood density is sufficient that a 2km radius produces useful matches.
-* Packaged/sealed items reduce risk and cognitive load for both parties.
+- Users have smartphones and cook lunch/dinner on most days.
+- Auto‑estimate heuristics are “good enough” and improved over time.
 
 ## Success Criteria (MVP demo)
 
-* Create → discover (nearby) → claim → accept → pickup reminder → mark picked up → see impact stat.
-* No crashes; clean error surfaces; privacy respected end‑to‑end.
-
+- Add an item → receive a lunch/dinner nudge → mark used on last day → stats show increased “items rescued” and “waste reduced”.
+- No crashes; clean error surfaces; quiet hours respected end‑to‑end.

@@ -14,6 +14,7 @@ import { Colors } from '@/constants/theme';
 import { createPosting, requestListingAssist, ListingAssistPayload } from '@/services/api';
 import { Posting } from '@/types/posting';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useAuth } from '@/hooks/use-auth';
 
 type QuickPostComposerProps = {
   onPostCreated?: (posting: Posting) => void;
@@ -34,6 +35,7 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const { accessToken } = useAuth();
 
   const parsedAllergens = useMemo(
     () =>
@@ -57,6 +59,11 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
   );
 
   const handleListingAssist = useCallback(async () => {
+    if (!accessToken) {
+      setError('Session expired. Sign in again to use Gemini assist.');
+      return;
+    }
+
     setAiLoading(true);
     setError(null);
     try {
@@ -65,7 +72,7 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
         quantityLabel,
         allergens: parsedAllergens,
       };
-      const result = await requestListingAssist(payload);
+      const result = await requestListingAssist(payload, accessToken);
       const suggestion = result.suggestion;
       setTitle((current) => (current.trim().length > 0 ? current : suggestion.titleSuggestion));
       setQuantityLabel(suggestion.quantityLabel);
@@ -79,7 +86,7 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
     } finally {
       setAiLoading(false);
     }
-  }, [title, quantityLabel, parsedAllergens]);
+  }, [title, quantityLabel, parsedAllergens, accessToken]);
 
   const resetForm = useCallback(() => {
     setTitle('');
@@ -102,6 +109,11 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
       return;
     }
 
+    if (!accessToken) {
+      setError('Session expired. Please sign in again before posting.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
     setSuccess(null);
@@ -114,7 +126,7 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
         allergens: parsedAllergens,
         impactNarrative: impactNarrative.trim() || undefined,
         tags,
-      });
+      }, accessToken);
       onPostCreated?.(posting);
       setSuccess('Posted! We will nudge nearby verified neighbors.');
       resetForm();
@@ -133,6 +145,7 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
     tags,
     onPostCreated,
     resetForm,
+    accessToken,
   ]);
 
   return (

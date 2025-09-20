@@ -5,6 +5,7 @@
 - Introduced a production-ready Node/Express API (`server/`) with MongoDB persistence for postings and scanned label data.
 - Enabled camera / library uploads with Google Vision integration hooks so label text, allergens, and expiry data flow straight into MongoDB.
 - Brought the Discover experience to life with a real map backed by live coordinates, including graceful fallbacks when location permissions are denied.
+- Secured the FastAPI API with Auth0 JWT validation and added an Expo login gate so only authenticated neighbors can access scans, nudges, and postings.
 
 ## New Functionality
 ### Light, Minimal UI
@@ -19,6 +20,11 @@
 ### Map-First Discovery
 - Swapped the static Discover mock for `react-native-maps`, live markers, and optional user location centering.
 - The API seeds starter postings (with geo coordinates) on first run and serves them via `/api/postings` so both Today and Discover draw from the same live data.
+
+### Auth0 Authentication & Session Guardrails
+- Implemented an Auth0-powered login that launches Universal Login from the Expo client and caches the resulting access token in memory.
+- Added a reusable `AuthProvider` + `AuthGate` wrapper that blocks the tab navigator until a user signs in and exposes logout controls in the UI.
+- Protected every FastAPI route with Auth0 JWT verification and surfaced friendly session-expiry messaging across the quick post, nudges, scans, and AI assist flows.
 
 ## Backend Setup (MongoDB Atlas)
 1. Create a free MongoDB Atlas cluster and database named `leftys` (or adjust `MONGODB_DB_NAME`).
@@ -51,8 +57,9 @@
 ## Required API Keys
 - **Google Cloud Vision API** (`GOOGLE_VISION_API_KEY`) for production-grade OCR when scanning labels.
 - **Google Maps SDK** keys for Android and iOS builds (placeholders live in `app.json`).
+- **Auth0 tenant credentials** — provide `AUTH0_DOMAIN` and `AUTH0_AUDIENCE` for the FastAPI verifier plus `EXPO_PUBLIC_AUTH0_DOMAIN`, `EXPO_PUBLIC_AUTH0_CLIENT_ID`, and `EXPO_PUBLIC_AUTH0_AUDIENCE` so the Expo app can launch Universal Login and request API-scoped tokens. Optionally set `AUTH0_ISSUER` when using a custom domain.
 
 ## Suggested Next Steps
-- Add Auth0-backed authentication so scans and postings are scoped per user.
+- Persist Auth0 refresh tokens in secure storage and add background token renewal for longer-lived sessions.
 - Promote scans into draft postings automatically and provide an edit/review flow before publishing.
 - Implement push notifications for claim updates and integrate Expo Location for background region monitoring once keys are issued.

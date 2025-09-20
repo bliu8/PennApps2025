@@ -14,6 +14,7 @@ import { QuickPostComposer } from '@/components/home/quick-post-composer';
 import { usePostings } from '@/hooks/use-postings';
 import { useImpactMetrics } from '@/hooks/use-impact-metrics';
 import { useNudges } from '@/hooks/use-nudges';
+import { useAuth } from '@/hooks/use-auth';
 
 import { AiNudge } from '@/types/nudge';
 
@@ -35,6 +36,19 @@ export default function HomeScreen() {
   const { nudges, source: nudgeSource, loading: nudgesLoading, refresh: refreshNudges } = useNudges(nudgeParams);
   const { metrics, source: metricsSource, loading: metricsLoading, refresh: refreshMetrics } = useImpactMetrics();
   const [activeNudgeIndex, setActiveNudgeIndex] = useState(0);
+  const { user, logout } = useAuth();
+  const displayName = useMemo(() => {
+    if (user?.name) {
+      return user.name.split(' ')[0];
+    }
+    if (user?.email) {
+      return user.email.split('@')[0];
+    }
+    return 'neighbor';
+  }, [user]);
+  const handleLogout = useCallback(() => {
+    void logout();
+  }, [logout]);
 
   const heroNudge: AiNudge = nudges[activeNudgeIndex % (nudges.length || 1)] ?? fallbackHeroMessages[0];
   const supportingNudges = nudges
@@ -72,13 +86,18 @@ export default function HomeScreen() {
         <View style={styles.header}>
           <View>
             <ThemedText type="title">Leftys</ThemedText>
-            <ThemedText style={[styles.subtitle, { color: palette.subtleText }]}>
-              {greeting}, Alex. Thanks for keeping food out of the bin.
+            <ThemedText style={[styles.subtitle, { color: palette.subtleText }]}> 
+              {greeting}, {displayName}. Thanks for keeping food out of the bin.
             </ThemedText>
           </View>
-          <Pill tone="brand" iconName="sparkles" compact>
-            Nearby radius · 2 km
-          </Pill>
+          <View style={styles.headerActions}>
+            <Pill tone="brand" iconName="sparkles" compact>
+              Nearby radius · 2 km
+            </Pill>
+            <Pill tone="info" iconName="arrow.uturn.backward.circle" compact onPress={handleLogout}>
+              Sign out
+            </Pill>
+          </View>
         </View>
 
         <SurfaceCard tone="highlight" style={styles.heroCard} onPress={handleNextNudge}>
@@ -241,6 +260,10 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  headerActions: {
+    alignItems: 'flex-end',
+    gap: 8,
   },
   subtitle: {
     marginTop: 8,

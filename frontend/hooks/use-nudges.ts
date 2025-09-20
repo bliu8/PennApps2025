@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchNudges } from '@/services/api';
 import { AiNudge, NudgesResponse } from '@/types/nudge';
 import { fallbackPickupPrompts, fallbackHeroMessages } from '@/constants/mock-data';
+import { useAuth } from '@/hooks/use-auth';
 
 type NudgeState = {
   nudges: AiNudge[];
@@ -22,11 +23,21 @@ const initialState: NudgeState = {
 
 export function useNudges(params?: { persona?: string; focus?: string; count?: number }) {
   const [state, setState] = useState<NudgeState>(initialState);
+  const { accessToken, status } = useAuth();
 
   const load = useCallback(async () => {
+    if (!accessToken) {
+      if (status === 'authenticated') {
+        setState((prev) => ({ ...prev, loading: false, error: 'Session expired. Please sign in again.' }));
+      } else {
+        setState((prev) => ({ ...prev, loading: false }));
+      }
+      return;
+    }
+
     setState((prev) => ({ ...prev, loading: true, error: null }));
     try {
-      const response = await fetchNudges(params);
+      const response = await fetchNudges(accessToken, params);
       setState({
         nudges: response.nudges,
         source: response.source,
@@ -40,11 +51,15 @@ export function useNudges(params?: { persona?: string; focus?: string; count?: n
         error: error instanceof Error ? error.message : 'Unable to load nudges',
       }));
     }
-  }, [params]);
+  }, [accessToken, status, params]);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    if (status === 'authenticated') {
+      void load();
+    } else if (status === 'unauthenticated') {
+      setState((prev) => ({ ...prev, loading: false }));
+    }
+  }, [status, load]);
 
   return {
     nudges: state.nudges,

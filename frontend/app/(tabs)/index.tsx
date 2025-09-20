@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
-import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -14,7 +14,7 @@ import { QuickPostComposer } from '@/components/home/quick-post-composer';
 import { usePostings } from '@/hooks/use-postings';
 import { useImpactMetrics } from '@/hooks/use-impact-metrics';
 import { useNudges } from '@/hooks/use-nudges';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthContext } from '@/context/AuthContext';
 
 import { AiNudge } from '@/types/nudge';
 
@@ -36,7 +36,7 @@ export default function HomeScreen() {
   const { nudges, source: nudgeSource, loading: nudgesLoading, refresh: refreshNudges } = useNudges(nudgeParams);
   const { metrics, source: metricsSource, loading: metricsLoading, refresh: refreshMetrics } = useImpactMetrics();
   const [activeNudgeIndex, setActiveNudgeIndex] = useState(0);
-  const { user, logout } = useAuth();
+  const { user, logout } = useAuthContext();
   const displayName = useMemo(() => {
     if (user?.name) {
       return user.name.split(' ')[0];
@@ -83,7 +83,11 @@ export default function HomeScreen() {
         contentContainerStyle={[styles.content, { backgroundColor: palette.background }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={palette.tint} />}
         showsVerticalScrollIndicator={false}>
+          <Pressable style={styles.logoutButton} onPress={handleLogout}>
+              <ThemedText style={styles.logoutText}>LOGOUT</ThemedText>
+          </Pressable>
         <View style={styles.header}>
+        
           <View>
             <ThemedText type="title">Leftys</ThemedText>
             <ThemedText style={[styles.subtitle, { color: palette.subtleText }]}> 
@@ -94,9 +98,9 @@ export default function HomeScreen() {
             <Pill tone="brand" iconName="sparkles" compact>
               Nearby radius · 2 km
             </Pill>
-            <Pill tone="info" iconName="arrow.uturn.backward.circle" compact onPress={handleLogout}>
+            {/* <Pill tone="info" iconName="arrow.uturn.backward.circle" compact onPress={handleLogout}>
               Sign out
-            </Pill>
+            </Pill> */}
           </View>
         </View>
 
@@ -361,5 +365,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+  },
+  logoutButton: {
+    backgroundColor: '#ff4444',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+  },
+  logoutText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

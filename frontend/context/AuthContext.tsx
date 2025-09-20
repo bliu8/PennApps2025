@@ -98,6 +98,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const redirectUri = Linking.createURL('/auth/callback');
+    console.log('🔗 DEBUG: Redirect URI =', redirectUri);
     const state = randomString(32);
     expectedStateRef.current = state;
 

@@ -12,6 +12,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { usePostings } from '@/hooks/use-postings';
 import { Posting } from '@/types/posting';
+import { getMapsConfigErrorMessage } from '@/utils/maps-config';
 
 const DEFAULT_REGION: Region = {
   latitude: 39.9526,
@@ -39,6 +40,9 @@ export default function ExploreScreen() {
   const [userRegion, setUserRegion] = useState<Region | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
+
+  // Check for Google Maps configuration issues
+  const mapsConfigError = getMapsConfigErrorMessage();
 
   useEffect(() => {
     void (async () => {
@@ -129,12 +133,24 @@ export default function ExploreScreen() {
           ) : null}
         </SurfaceCard>
 
-        {error ? (
+        {error || mapsConfigError ? (
           <SurfaceCard tone="warning" style={styles.errorCard}>
-            <ThemedText type="subtitle">We can&apos;t load the map data</ThemedText>
-            <ThemedText style={{ color: palette.subtleText }}>
-              {error}. Pull to refresh or check the API base URL in your Expo env variables.
+            <ThemedText type="subtitle">
+              {mapsConfigError?.title || 'We can&apos;t load the map data'}
             </ThemedText>
+            <ThemedText style={{ color: palette.subtleText }}>
+              {mapsConfigError?.message || error || 'An unknown error occurred.'}
+            </ThemedText>
+            {mapsConfigError?.suggestion && (
+              <ThemedText style={[styles.errorSuggestion, { color: palette.subtleText }]}>
+                💡 {mapsConfigError.suggestion}
+              </ThemedText>
+            )}
+            {error && !mapsConfigError && (
+              <ThemedText style={[styles.errorSuggestion, { color: palette.subtleText }]}>
+                Pull to refresh or check the API base URL in your Expo env variables.
+              </ThemedText>
+            )}
           </SurfaceCard>
         ) : null}
 
@@ -334,5 +350,10 @@ const styles = StyleSheet.create({
   },
   errorCard: {
     gap: 12,
+  },
+  errorSuggestion: {
+    fontSize: 14,
+    lineHeight: 20,
+    fontStyle: 'italic',
   },
 });

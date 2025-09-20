@@ -1,19 +1,7 @@
-export type ImpactMetric = {
-  id: string;
-  label: string;
-  value: string;
-  helperText: string;
-  icon: 'heart.fill' | 'sparkles' | 'leaf.fill';
-};
+import { ImpactMetric } from '@/types/impact';
+import { AiNudge } from '@/types/nudge';
 
-export type PickupPrompt = {
-  id: string;
-  title: string;
-  supportingCopy: string;
-  defaultLabel: string;
-};
-
-export const impactMetrics: ImpactMetric[] = [
+export const fallbackImpactMetrics: ImpactMetric[] = [
   {
     id: 'neighbors-helped',
     label: 'Neighbors helped',
@@ -37,16 +25,16 @@ export const impactMetrics: ImpactMetric[] = [
   },
 ];
 
-export const pickupPrompts: PickupPrompt[] = [
+export const fallbackPickupPrompts: AiNudge[] = [
   {
     id: 'default-window',
-    title: 'Default to a 30-minute pickup window',
+    headline: 'Default to a 30-minute pickup window',
     supportingCopy: 'It keeps momentum high and matches what most neighbors expect.',
     defaultLabel: 'Suggested: 30 min window',
   },
   {
     id: 'location-hint',
-    title: 'Pick a public handoff spot upfront',
+    headline: 'Pick a public handoff spot upfront',
     supportingCopy: 'Library entrances, grocery foyers, and lobbies feel safest for everyone.',
     defaultLabel: 'Popular: Public lobby shelves',
   },
@@ -57,4 +45,25 @@ export const allergenFriendlyFilters = [
   'Nut-free',
   'Gluten-free',
   'Vegan snacks',
+];
+
+export const fallbackHeroMessages: AiNudge[] = [
+  {
+    id: 'hero-quick-start',
+    headline: 'Tap to cycle micro-nudges',
+    supportingCopy: 'Each tap reveals a new sustainability cue to optimize your post.',
+    defaultLabel: 'Tap for another nudge',
+  },
+  {
+    id: 'hero-impact',
+    headline: 'Lead with the climate win',
+    supportingCopy: 'Mention how many meals or pounds of CO₂ you are preventing—Gemini can draft it for you.',
+    defaultLabel: 'Add impact stat',
+  },
+  {
+    id: 'hero-reminder',
+    headline: 'Default to smart reminders',
+    supportingCopy: 'Auto ping your claimer 15 minutes before pickup to keep success rates sky high.',
+    defaultLabel: 'Reminder enabled',
+  },
 ];

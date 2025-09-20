@@ -22,6 +22,8 @@ export async function seedDatabase(db: Db) {
       reserverCount: 2,
       distanceKm: 0.6,
       coordinates: { latitude: 39.9526, longitude: -75.1652 },
+      impactNarrative: 'Redirects pantry extras and saved ~6 lbs of CO₂ last pickup.',
+      tags: ['ZeroWaste', 'SnackRescue'],
       createdAt: now,
     },
     {
@@ -35,6 +37,8 @@ export async function seedDatabase(db: Db) {
       reserverCount: 1,
       distanceKm: 1.1,
       coordinates: { latitude: 39.9498, longitude: -75.171 },
+      impactNarrative: 'Chilled beverages keep neighbors hydrated without buying new plastic.',
+      tags: ['Hydration', 'PlasticFree'],
       createdAt: now,
     },
     {
@@ -48,6 +52,8 @@ export async function seedDatabase(db: Db) {
       reserverCount: 0,
       distanceKm: 1.8,
       coordinates: { latitude: 39.955, longitude: -75.1495 },
+      impactNarrative: 'Pantry staple rescue — enough for 6 servings and 4 lbs of waste avoided.',
+      tags: ['Pantry', 'FamilyMeal'],
       createdAt: now,
     },
   ]);

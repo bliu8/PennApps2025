@@ -1,11 +1,5 @@
 import { PropsWithChildren } from 'react';
-import {
-  Pressable,
-  PressableProps,
-  StyleProp,
-  StyleSheet,
-  ViewStyle,
-} from 'react-native';
+import { Pressable, PressableProps, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -49,15 +43,18 @@ export function SurfaceCard({
     style,
   ];
 
+  if (!interactive) {
+    return <View style={baseStyle}>{children}</View>;
+  }
+
   return (
     <Pressable
-      accessibilityRole={interactive ? 'button' : undefined}
+      accessibilityRole="button"
       {...rest}
       onPress={onPress}
-      disabled={!interactive}
       style={({ pressed }) => [
         ...baseStyle,
-        interactive && pressed ? styles.pressed : undefined,
+        pressed ? styles.pressed : undefined,
       ]}>
       {children}
     </Pressable>

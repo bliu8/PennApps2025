@@ -9,7 +9,7 @@ import { SurfaceCard } from '@/components/ui/surface-card';
 import { Pill } from '@/components/ui/pill';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
-import { fetchScans, uploadScan } from '@/services/api';
+import { fetchScans, uploadScan, requestListingAssist, ListingAssistPayload, ListingAssistantResponse } from '@/services/api';
 import { ScanRecord } from '@/types/scans';
 
 const palette = Colors.light;
@@ -21,6 +21,9 @@ export default function ScanScreen() {
   const [loadingHistory, setLoadingHistory] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [aiAssist, setAiAssist] = useState<ListingAssistantResponse | null>(null);
+  const [aiAssistLoading, setAiAssistLoading] = useState(false);
+  const [aiAssistError, setAiAssistError] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -36,6 +39,36 @@ export default function ScanScreen() {
   }, []);
 
   const allergenDisplay = useMemo(() => scanResult?.allergens ?? [], [scanResult]);
+
+  useEffect(() => {
+    if (!scanResult) {
+      setAiAssist(null);
+      setAiAssistError(null);
+      return;
+    }
+
+    const payload: ListingAssistPayload = {
+      title: scanResult.title,
+      quantityLabel: scanResult.rawText || scanResult.notes || undefined,
+      allergens: scanResult.allergens,
+      notes: scanResult.notes ?? null,
+      expiryDate: scanResult.expiryDate ?? null,
+    };
+
+    setAiAssistLoading(true);
+    setAiAssistError(null);
+    void requestListingAssist(payload)
+      .then((response) => {
+        setAiAssist(response);
+      })
+      .catch((err) => {
+        setAiAssist(null);
+        setAiAssistError(err instanceof Error ? err.message : 'Unable to fetch Gemini listing defaults');
+      })
+      .finally(() => {
+        setAiAssistLoading(false);
+      });
+  }, [scanResult]);
 
   const pickImage = useCallback(async (source: 'camera' | 'library') => {
     setError(null);
@@ -194,6 +227,57 @@ export default function ScanScreen() {
           </SurfaceCard>
         ) : null}
 
+        {aiAssistLoading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="small" color={palette.tint} />
+            <ThemedText style={{ color: palette.subtleText }}>Coaching with Gemini…</ThemedText>
+          </View>
+        ) : null}
+
+        {aiAssist ? (
+          <SurfaceCard tone={aiAssist.source === 'live' ? 'success' : 'info'} style={styles.aiAssistCard}>
+            <View style={styles.sectionHeader}>
+              <ThemedText type="subtitle">Gemini-ready listing defaults</ThemedText>
+              <Pill tone={aiAssist.source === 'live' ? 'success' : 'info'} compact iconName="sparkles">
+                {aiAssist.source === 'live' ? 'Live Gemini' : 'Sample assist'}
+              </Pill>
+            </View>
+            <ThemedText style={[styles.helperText, { color: palette.subtleText }]}>
+              Drop these into the quick post composer to publish in seconds.
+            </ThemedText>
+            <View style={styles.detailRow}>
+              <IconSymbol name="text.book.closed" size={18} color={palette.success} />
+              <ThemedText style={styles.detailText}>{aiAssist.suggestion.titleSuggestion}</ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <IconSymbol name="clock.fill" size={18} color={palette.success} />
+              <ThemedText style={styles.detailText}>{aiAssist.suggestion.pickupWindowLabel}</ThemedText>
+            </View>
+            <View style={styles.detailRow}>
+              <IconSymbol name="map.fill" size={18} color={palette.success} />
+              <ThemedText style={styles.detailText}>{aiAssist.suggestion.pickupLocationHint}</ThemedText>
+            </View>
+            <ThemedText style={[styles.helperText, { color: palette.subtleText }]}>
+              {aiAssist.suggestion.impactNarrative}
+            </ThemedText>
+            <View style={styles.allergenRow}>
+              {aiAssist.suggestion.tags.map((tag) => (
+                <Pill key={`ai-tag-${tag}`} tone="success" compact>
+                  #{tag.replace(/^#/, '')}
+                </Pill>
+              ))}
+            </View>
+            {aiAssistError ? (
+              <ThemedText style={{ color: palette.warning }}>{aiAssistError}</ThemedText>
+            ) : null}
+          </SurfaceCard>
+        ) : aiAssistError ? (
+          <SurfaceCard tone="warning" style={styles.aiAssistCard}>
+            <ThemedText type="subtitle">We couldn&apos;t reach Gemini</ThemedText>
+            <ThemedText style={{ color: palette.subtleText }}>{aiAssistError}</ThemedText>
+          </SurfaceCard>
+        ) : null}
+
         <SurfaceCard tone="default" style={styles.historyCard}>
           <View style={styles.sectionHeader}>
             <ThemedText type="subtitle">Scan history</ThemedText>
@@ -296,6 +380,9 @@ const styles = StyleSheet.create({
   resultCard: {
     gap: 12,
   },
+  aiAssistCard: {
+    gap: 12,
+  },
   resultRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -311,6 +398,10 @@ const styles = StyleSheet.create({
   },
   historyCard: {
     gap: 16,
+  },
+  helperText: {
+    fontSize: 14,
+    lineHeight: 20,
   },
   sectionHeader: {
     flexDirection: 'row',

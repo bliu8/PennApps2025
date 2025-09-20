@@ -58,6 +58,12 @@
           "photosPermission": "Allow Leftys to access your photo library to attach receipts and packaging labels.",
           "cameraPermission": "Allow Leftys to use the camera to scan packaged food labels."
         }
+      ],
+      [
+        "react-native-maps",
+        {
+          "useGoogleMaps": true
+        }
       ]
     ],
     "experiments": {

@@ -8,7 +8,7 @@ import * as SecureStore from 'expo-secure-store';
 WebBrowser.maybeCompleteAuthSession();
 
 import { AuthStatus, AuthUser } from '@/types/auth';
-import { AUTH0_AUDIENCE, AUTH0_CLIENT_ID, AUTH0_DOMAIN } from '@/utils/env';
+import { AUTH0_CLIENT_ID, AUTH0_DOMAIN } from '@/utils/env';
 
 type AuthContextValue = {
   status: AuthStatus;

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -8,15 +8,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useAuthContext } from '@/context/AuthContext';
 import Stats from '../../components/home/stats';
-
-// function useGreeting() {
-//   return useMemo(() => {
-//     const hour = new Date().getHours();
-//     if (hour < 12) return 'Good morning';
-//     if (hour < 18) return 'Good afternoon';
-//     return 'Good evening';
-//   }, []);
-// }
+import Alerts from '../../components/home/alerts';
 
 export default function HomeScreen() {
   const palette = Colors.light;
@@ -30,41 +22,43 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}> 
-      <ScrollView
-        style={styles.container}
-        contentContainerStyle={[styles.content, { backgroundColor: palette.background }]}
-        showsVerticalScrollIndicator={false}
-      >
+      <View style={[styles.container, { backgroundColor: palette.background }]}> 
         <View style={styles.header}>
           <View>
-            <ThemedText type="title">Hi {displayName}!</ThemedText>
+            <ThemedText type="title">Hey {displayName}!</ThemedText>
             {/* <ThemedText style={[styles.subtitle, { color: palette.subtleText }]}> 
               {greeting}, {displayName}!
             </ThemedText> */}
           </View>
         </View>
-
+        <Alerts />
         <Stats />
+        
 
-        <Pressable
-          onPress={() => { console.log('UPLOAD PHOTO'); }}
-          style={({ pressed }) => [styles.uploadPressable, { opacity: pressed ? 0.98 : 1 }]}
+        <SurfaceCard
+          onPress={() => { console.log('UPLOAD YOUR FOOD'); }}
+          style={[
+            styles.uploadCard,
+            styles.uploadShadow,
+            {
+              backgroundColor: palette.cardHighlight,
+              borderColor: palette.tint,
+              borderWidth: 1.25,
+              justifyContent: 'center',
+              alignItems: 'center',
+            },
+          ]}
         >
-          <SurfaceCard tone="highlight" style={[styles.uploadCard, styles.uploadShadow]}>
-            <View style={styles.uploadHero}>
-              <View style={[styles.uploadIcon, { backgroundColor: palette.card }]}> 
-                <IconSymbol name="camera.fill" size={28} color={palette.tint} />
-              </View>
-              <ThemedText type="subtitle">Upload a photo to get started</ThemedText>
-              <ThemedText style={{ color: palette.subtleText }}>
-                Snap a quick picture of what you want to share.
-              </ThemedText>
+          <View style={styles.uploadHero}>
+            <View style={[styles.uploadIcon]}> 
+              <IconSymbol name="camera.fill" size={50} color={palette.tint} />
             </View>
-          </SurfaceCard>
-        </Pressable>
+            <ThemedText type="subtitle">Upload your food</ThemedText>
+          </View>
+        </SurfaceCard>
 
         {/* Future: quick composer, nudges, metrics, and feed will live here */}
-      </ScrollView>
+      </View>
     </SafeAreaView>
   );
 }
@@ -75,12 +69,10 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-  },
-  content: {
     paddingHorizontal: 20,
-    paddingTop: 12,
-    paddingBottom: 32,
-    gap: 24,
+    paddingTop: 20,
+    paddingBottom: 24,
+    gap: 20,
   },
   header: {
     flexDirection: 'row',
@@ -93,9 +85,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     lineHeight: 24,
   },
-  uploadPressable: {
-    flex: 1,
-  },
   uploadCard: {
     gap: 16,
     flex: 1,
@@ -104,6 +93,7 @@ const styles = StyleSheet.create({
   uploadHero: {
     gap: 12,
     alignItems: 'center',
+    marginBottom: 20,
   },
   uploadIcon: {
     width: 56,

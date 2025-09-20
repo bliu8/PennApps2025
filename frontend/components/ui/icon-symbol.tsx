@@ -32,6 +32,8 @@ const MAPPING = {
   'gearshape.fill': 'settings',
   'arrow.up.left.and.arrow.down.right': 'open-in-full',
   'chevron.left': 'chevron-left',
+  'dollarsign.circle.fill': 'attach-money',
+  'exclamationmark.triangle.fill': 'warning',
   photo: 'photo',
   'wand.and.stars': 'auto-fix-high',
   'text.book.closed': 'menu-book',

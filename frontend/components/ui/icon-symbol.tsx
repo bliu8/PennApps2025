@@ -18,7 +18,18 @@ const MAPPING = {
   'paperplane.fill': 'send',
   'chevron.left.forwardslash.chevron.right': 'code',
   'chevron.right': 'chevron-right',
+  'sparkles': 'auto-awesome',
+  'heart.fill': 'favorite',
+  'leaf.fill': 'eco',
+  'map.fill': 'map',
+  'clock.fill': 'schedule',
+  'checkmark.seal.fill': 'verified',
+  'person.3.fill': 'groups',
+  'bell.fill': 'notifications',
+  'mappin.circle.fill': 'place',
 } as IconMapping;
+
+export type { IconSymbolName };
 
 /**
  * An icon component that uses native SF Symbols on iOS, and Material Icons on Android and web.

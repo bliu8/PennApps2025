@@ -77,6 +77,24 @@ export function PostCard({ post, onPress }: PostCardProps) {
           </ThemedText>
         )}
       </SurfaceCard>
+
+      {post.impactNarrative ? (
+        <SurfaceCard tone="success" style={styles.impactCard}>
+          <View style={styles.detailRow}>
+            <IconSymbol name="leaf.fill" size={18} color={palette.success} />
+            <ThemedText style={styles.detailText}>{post.impactNarrative}</ThemedText>
+          </View>
+          {post.tags && post.tags.length > 0 ? (
+            <View style={styles.tagRow}>
+              {post.tags.map((tag) => (
+                <Pill key={`${post.id}-${tag}`} tone="success" compact>
+                  #{tag.replace(/^#/, '')}
+                </Pill>
+              ))}
+            </View>
+          ) : null}
+        </SurfaceCard>
+      ) : null}
     </SurfaceCard>
   );
 }
@@ -125,6 +143,10 @@ const styles = StyleSheet.create({
   },
   socialCard: {
     gap: 8,
+    padding: 16,
+  },
+  impactCard: {
+    gap: 12,
     padding: 16,
   },
 });

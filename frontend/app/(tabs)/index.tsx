@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -9,12 +9,13 @@ import { SurfaceCard } from '@/components/ui/surface-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { MetricTile } from '@/components/ui/metric-tile';
 import { Colors } from '@/constants/theme';
-import {
-  allergenFriendlyFilters,
-  impactMetrics,
-  pickupPrompts,
-} from '@/constants/mock-data';
+import { allergenFriendlyFilters, fallbackHeroMessages } from '@/constants/mock-data';
+import { QuickPostComposer } from '@/components/home/quick-post-composer';
 import { usePostings } from '@/hooks/use-postings';
+import { useImpactMetrics } from '@/hooks/use-impact-metrics';
+import { useNudges } from '@/hooks/use-nudges';
+
+import { AiNudge } from '@/types/nudge';
 
 function useGreeting() {
   return useMemo(() => {
@@ -30,12 +31,36 @@ export default function HomeScreen() {
   const greeting = useGreeting();
   const { postings, loading, error, refresh } = usePostings();
   const [refreshing, setRefreshing] = useState(false);
+  const nudgeParams = useMemo(() => ({ persona: 'Alex', focus: 'sustainable food sharing', count: 4 }), []);
+  const { nudges, source: nudgeSource, loading: nudgesLoading, refresh: refreshNudges } = useNudges(nudgeParams);
+  const { metrics, source: metricsSource, loading: metricsLoading, refresh: refreshMetrics } = useImpactMetrics();
+  const [activeNudgeIndex, setActiveNudgeIndex] = useState(0);
+
+  const heroNudge: AiNudge = nudges[activeNudgeIndex % (nudges.length || 1)] ?? fallbackHeroMessages[0];
+  const supportingNudges = nudges
+    .filter((nudge) => nudge.id !== heroNudge.id)
+    .slice(0, 2);
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refresh();
+    await Promise.all([refresh(), refreshMetrics(), refreshNudges()]);
     setRefreshing(false);
-  }, [refresh]);
+  }, [refresh, refreshMetrics, refreshNudges]);
+
+  const handleNextNudge = useCallback(() => {
+    setActiveNudgeIndex((prev) => (nudges.length > 0 ? (prev + 1) % nudges.length : prev));
+  }, [nudges.length]);
+
+  useEffect(() => {
+    if (activeNudgeIndex >= nudges.length && nudges.length > 0) {
+      setActiveNudgeIndex(0);
+    }
+  }, [activeNudgeIndex, nudges.length]);
+
+  const handlePostCreated = useCallback(async () => {
+    await refresh();
+    await refreshMetrics();
+  }, [refresh, refreshMetrics]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}> 
@@ -56,20 +81,25 @@ export default function HomeScreen() {
           </Pill>
         </View>
 
-        <SurfaceCard tone="highlight" style={styles.heroCard}>
+        <SurfaceCard tone="highlight" style={styles.heroCard} onPress={handleNextNudge}>
           <Pill tone="brand" iconName="heart.fill" compact>
-            Today&apos;s nudge
+            Tap to refresh your nudge
           </Pill>
           <ThemedText type="subtitle" style={styles.heroTitle}>
-            Quick pickups start with clear defaults
+            {heroNudge.headline}
           </ThemedText>
-          <ThemedText style={{ color: palette.subtleText }}>
-            Set your pickup window and handoff spot upfront—we&apos;ll ping verified neighbors who prefer swift exchanges.
-          </ThemedText>
+          <ThemedText style={{ color: palette.subtleText }}>{heroNudge.supportingCopy}</ThemedText>
 
-          {pickupPrompts.map((prompt, index) => (
+          {nudgesLoading ? (
+            <View style={styles.nudgeLoading}>
+              <ActivityIndicator size="small" color={palette.tint} />
+              <ThemedText style={{ color: palette.subtleText }}>Fetching Gemini nudges…</ThemedText>
+            </View>
+          ) : null}
+
+          {supportingNudges.map((prompt, index) => (
             <View key={prompt.id} style={styles.promptRow}>
-              <View style={[styles.promptIcon, { backgroundColor: palette.card }]}> 
+              <View style={[styles.promptIcon, { backgroundColor: palette.card }]}>
                 <IconSymbol
                   name={index === 0 ? 'clock.fill' : 'mappin.circle.fill'}
                   size={18}
@@ -77,7 +107,7 @@ export default function HomeScreen() {
                 />
               </View>
               <View style={styles.promptCopy}>
-                <ThemedText type="defaultSemiBold">{prompt.title}</ThemedText>
+                <ThemedText type="defaultSemiBold">{prompt.headline}</ThemedText>
                 <ThemedText style={[styles.promptText, { color: palette.subtleText }]}>
                   {prompt.supportingCopy}
                 </ThemedText>
@@ -87,7 +117,13 @@ export default function HomeScreen() {
               </Pill>
             </View>
           ))}
+
+          <Pill tone={nudgeSource === 'live' ? 'success' : 'info'} compact iconName="sparkles">
+            {nudgeSource === 'live' ? 'Gemini powered' : 'Sample nudges'}
+          </Pill>
         </SurfaceCard>
+
+        <QuickPostComposer onPostCreated={handlePostCreated} />
 
         <View style={styles.quickActions}>
           <SurfaceCard tone="success" style={styles.quickActionCard}>
@@ -120,12 +156,15 @@ export default function HomeScreen() {
         <SurfaceCard tone="default" style={styles.metricSection}>
           <View style={styles.sectionHeader}>
             <ThemedText type="subtitle">Impact nudges</ThemedText>
-            <Pill tone="brand" compact iconName="heart.fill">
-              Keep the streak alive
+            <Pill
+              tone={metricsSource === 'live' ? 'success' : 'info'}
+              compact
+              iconName={metricsSource === 'live' ? 'checkmark.seal.fill' : 'sparkles'}>
+              {metricsSource === 'live' ? 'Live from MongoDB' : 'Sample metrics'}
             </Pill>
           </View>
           <View style={styles.metricsGrid}>
-            {impactMetrics.map((metric) => (
+            {metrics.map((metric) => (
               <View key={metric.id} style={styles.metricWrapper}>
                 <MetricTile metric={metric} />
               </View>
@@ -142,7 +181,7 @@ export default function HomeScreen() {
           </SurfaceCard>
         ) : null}
 
-        {loading ? (
+        {loading || metricsLoading ? (
           <View style={styles.loadingState}>
             <ActivityIndicator size="small" color={palette.tint} />
             <ThemedText style={{ color: palette.subtleText }}>Loading nearby postings…</ThemedText>
@@ -219,6 +258,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
+  },
+  nudgeLoading: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   promptIcon: {
     width: 36,

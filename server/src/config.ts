@@ -15,6 +15,7 @@ type ServerConfig = {
 
 const port = Number(process.env.PORT ?? '4000');
 const mongoUri = process.env.MONGODB_URI ?? '';
+
 const mongoDbName = process.env.MONGODB_DB_NAME ?? '';
 const googleGeminiModel = process.env.GOOGLE_GEMINI_MODEL ?? 'gemini-2.5-flash-image-preview';
 

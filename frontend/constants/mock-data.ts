@@ -1,16 +1,3 @@
-export type Posting = {
-  id: string;
-  title: string;
-  quantityLabel: string;
-  distanceKm: number;
-  pickupWindow: string;
-  pickupLocationHint: string;
-  status: 'open' | 'reserved';
-  allergens: string[];
-  socialProof: string;
-  reserverCount: number;
-};
-
 export type ImpactMetric = {
   id: string;
   label: string;
@@ -25,45 +12,6 @@ export type PickupPrompt = {
   supportingCopy: string;
   defaultLabel: string;
 };
-
-export const demoPostings: Posting[] = [
-  {
-    id: 'granola-bundle',
-    title: 'Granola bar bundle',
-    quantityLabel: '4 sealed twin-packs',
-    distanceKm: 0.6,
-    pickupWindow: 'Today · 5:30 – 6:00 PM',
-    pickupLocationHint: 'Lobby bookshelf near the mailroom',
-    status: 'open',
-    allergens: ['gluten', 'nuts'],
-    socialProof: '3 neighbors picked this up last week',
-    reserverCount: 2,
-  },
-  {
-    id: 'seltzer-pack',
-    title: 'Citrus seltzer 6-pack',
-    quantityLabel: 'All cans sealed & chilled',
-    distanceKm: 1.1,
-    pickupWindow: 'Today · 7:00 – 8:00 PM',
-    pickupLocationHint: 'Corner table at Willow Commons',
-    status: 'reserved',
-    allergens: [],
-    socialProof: 'Reserved in under 12 minutes yesterday',
-    reserverCount: 1,
-  },
-  {
-    id: 'pasta-night',
-    title: 'Tomato basil pasta kit',
-    quantityLabel: '2 boxed kits + sauce pouch',
-    distanceKm: 1.8,
-    pickupWindow: 'Tomorrow · 11:00 – 13:00',
-    pickupLocationHint: 'Public library info desk basket',
-    status: 'open',
-    allergens: ['gluten'],
-    socialProof: 'Neighborhood favorite • 9 saves',
-    reserverCount: 0,
-  },
-];
 
 export const impactMetrics: ImpactMetric[] = [
   {

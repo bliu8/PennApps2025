@@ -1,26 +1,58 @@
-# Leftys Mobile MVP — Implementation Report
+# Leftys Mobile + API — Implementation Report
 
 ## Overview
-- Replaced the Expo starter screens with a behaviorally informed Leftys experience built around packaged-food sharing.
-- Added reusable UI building blocks (surface cards, pills, metric tiles, post cards) and a refined color system for a calm, trust-first interface.
-- Seeded representative demo data for postings, pickup prompts, impact metrics, and allergen filters to showcase the core flows without external APIs.
+- Reworked the Expo client into a light-mode, premium-feeling interface that keeps the visual system consistent across screens.
+- Introduced a production-ready Node/Express API (`server/`) with MongoDB persistence for postings and scanned label data.
+- Enabled camera / library uploads with Google Vision integration hooks so label text, allergens, and expiry data flow straight into MongoDB.
+- Brought the Discover experience to life with a real map backed by live coordinates, including graceful fallbacks when location permissions are denied.
 
-## Behavioral Nudges
-- **Default choices:** Highlighted 30-minute pickup windows, preset reminders, and public handoff locations as easy one-tap defaults that align with community norms.
-- **Social proof & impact framing:** Surface live metrics (“Neighbors helped”, “Quick pickup streak”) and social context on each post to reinforce positive habits.
-- **Salience & simplification:** Grouped safety guardrails and allergen filters inside lightweight cards so the right actions are obvious without cognitive overload.
+## New Functionality
+### Light, Minimal UI
+- Forced the entire app into a refined light palette and tuned the design tokens (`constants/theme.ts`) to feel premium yet calm.
+- Updated every tab to use the refreshed palette, elevation, and typography so cards, pills, and CTAs feel cohesive.
 
-## Screen Highlights
-- **Today tab:** Personalized greeting, hero prompt, quick action cards, impact metrics, curated open postings, and safety callouts.
-- **Discover tab:** Map-style preview with approximate pins, smart filters, planning guidance, and trending postings list.
-- **Safety modal:** Condenses trust & safety policies into digestible cards with a closing action to return to the main flow.
+### Image Scanning → Database Pipeline
+- Added a dedicated **Scan** tab that captures or uploads packaging labels, sends them to the new API, and stores parsed results in MongoDB (`/api/scans`).
+- Surface scan history inside the app so users can reuse parsed records when posting new items.
+- The server will call the Google Vision API when `GOOGLE_VISION_API_KEY` is present; otherwise it saves a filename-based stub so the flow still works during setup.
 
-## Implementation Notes
-- All strings reference sealed, packaged food per policy. Exact map coordinates remain abstract until claim acceptance.
-- Components avoid runtime network calls and keep placeholders where a backend, storage, or push service would eventually connect.
-- Design tokens live in `constants/theme.ts`; data scaffolding is in `constants/mock-data.ts` to keep content centralized.
+### Map-First Discovery
+- Swapped the static Discover mock for `react-native-maps`, live markers, and optional user location centering.
+- The API seeds starter postings (with geo coordinates) on first run and serves them via `/api/postings` so both Today and Discover draw from the same live data.
+
+## Backend Setup (MongoDB Atlas)
+1. Create a free MongoDB Atlas cluster and database named `leftys` (or adjust `MONGODB_DB_NAME`).
+2. Create a database user with read/write privileges and allow your IP (or 0.0.0.0/0 for development).
+3. Copy `server/.env.example` to `server/.env` and fill in:
+   - `MONGODB_URI` — your Atlas connection string.
+   - `MONGODB_DB_NAME` — optional override.
+   - `GOOGLE_VISION_API_KEY` — required for real OCR (leave commented to use filename fallback).
+4. Install dependencies and run the API:
+   ```bash
+   cd server
+   npm install
+   npm run build
+   npm start
+   ```
+   The server listens on `http://localhost:4000` and exposes `GET /api/postings`, `GET /api/scans`, and `POST /api/scans`.
+5. Seed data automatically populates if the `postings` collection is empty; set `SEED_DATABASE=false` to disable.
+
+## Frontend Environment
+- Install client deps and run the Expo app:
+  ```bash
+  cd frontend
+  npm install
+  npm run start
+  ```
+- Provide `EXPO_PUBLIC_API_BASE_URL` (defaults to `http://localhost:4000/api`) in your Expo env for remote deployments.
+- Google Maps API keys: update `app.json` placeholders (`YOUR_IOS_GOOGLE_MAPS_API_KEY`, `YOUR_ANDROID_GOOGLE_MAPS_API_KEY`) before shipping to stores.
+- Expo plugins request the right permissions for camera, photo library, and location usage copy.
+
+## Required API Keys
+- **Google Cloud Vision API** (`GOOGLE_VISION_API_KEY`) for production-grade OCR when scanning labels.
+- **Google Maps SDK** keys for Android and iOS builds (placeholders live in `app.json`).
 
 ## Suggested Next Steps
-- Wire components to live API endpoints once available (auth, postings, claims, analytics).
-- Add persistence for user preferences (allergen filters, reminder settings).
-- Layer in push notifications and location services with environment-driven API keys when credentials are provisioned.
+- Add Auth0-backed authentication so scans and postings are scoped per user.
+- Promote scans into draft postings automatically and provide an edit/review flow before publishing.
+- Implement push notifications for claim updates and integrate Expo Location for background region monitoring once keys are issued.

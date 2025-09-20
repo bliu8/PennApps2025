@@ -44,7 +44,7 @@ export function SurfaceCard({
     {
       backgroundColor: backgroundByTone[tone],
       borderColor: palette.border,
-      shadowColor: theme === 'light' ? '#0F1A1414' : '#00000070',
+      shadowColor: theme === 'light' ? '#0F1A1410' : '#00000070',
     },
     style,
   ];

@@ -27,6 +27,14 @@ const MAPPING = {
   'person.3.fill': 'groups',
   'bell.fill': 'notifications',
   'mappin.circle.fill': 'place',
+  'archivebox.fill': 'inventory',
+  'camera.fill': 'photo-camera',
+  photo: 'photo',
+  'wand.and.stars': 'auto-fix-high',
+  'text.book.closed': 'menu-book',
+  calendar: 'calendar-today',
+  'clock.arrow.circlepath': 'history',
+  'location.slash': 'location-off',
 } as IconMapping;
 
 export type { IconSymbolName };

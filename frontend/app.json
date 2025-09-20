@@ -6,10 +6,18 @@
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
     "scheme": "frontend",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": "YOUR_IOS_GOOGLE_MAPS_API_KEY"
+      },
+      "infoPlist": {
+        "NSCameraUsageDescription": "Allow Leftys to scan packaged food labels.",
+        "NSPhotoLibraryUsageDescription": "Allow Leftys to access your photo library when uploading receipts and packaging labels.",
+        "NSLocationWhenInUseUsageDescription": "Allow Leftys to show nearby pickups on the map."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +27,12 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "config": {
+        "googleMaps": {
+          "apiKey": "YOUR_ANDROID_GOOGLE_MAPS_API_KEY"
+        }
+      }
     },
     "web": {
       "output": "static",
@@ -37,6 +50,13 @@
           "dark": {
             "backgroundColor": "#000000"
           }
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Leftys to access your photo library to attach receipts and packaging labels.",
+          "cameraPermission": "Allow Leftys to use the camera to scan packaged food labels."
         }
       ]
     ],

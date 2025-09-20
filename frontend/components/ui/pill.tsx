@@ -1,5 +1,5 @@
 import { PropsWithChildren } from 'react';
-import { StyleSheet, View, ViewProps } from 'react-native';
+import { Pressable, PressableProps, StyleSheet, View } from 'react-native';
 
 import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
@@ -9,7 +9,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 type PillTone = 'default' | 'brand' | 'success' | 'warning' | 'info';
 
 type PillProps = PropsWithChildren<
-  ViewProps & {
+  PressableProps & {
     tone?: PillTone;
     iconName?: Parameters<typeof IconSymbol>[0]['name'];
     compact?: boolean;
@@ -22,6 +22,7 @@ export function Pill({
   iconName,
   style,
   compact = false,
+  disabled,
   ...rest
 }: PillProps) {
   const theme = useColorScheme() ?? 'light';
@@ -43,14 +44,20 @@ export function Pill({
     info: palette.info,
   };
 
+  const interactive = typeof rest.onPress === 'function' && !disabled;
+  const Component = interactive ? Pressable : View;
+
   return (
-    <View
+    <Component
+      accessibilityRole={interactive ? 'button' : undefined}
+      accessibilityState={interactive ? { disabled } : undefined}
       style={[
         styles.container,
         compact && styles.compact,
-        { backgroundColor: backgroundByTone[tone] },
+        { backgroundColor: backgroundByTone[tone], opacity: disabled ? 0.6 : 1 },
         style,
       ]}
+      disabled={disabled}
       {...rest}>
       {iconName ? (
         <IconSymbol name={iconName} size={16} color={textColorByTone[tone]} />
@@ -63,7 +70,7 @@ export function Pill({
         ]}>
         {children}
       </ThemedText>
-    </View>
+    </Component>
   );
 }
 

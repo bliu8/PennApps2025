@@ -17,13 +17,23 @@ export default function Alerts() {
   const palette = Colors.light;
 
   // TODO: wire to backend inventory soon; using tasteful placeholders for MVP
+  function daysUntil(dateIso: string): number {
+    const today = new Date();
+    const target = new Date(dateIso);
+    const ms = target.setHours(0,0,0,0) - today.setHours(0,0,0,0);
+    return Math.floor(ms / 86400000);
+  }
+
   const expiringSoon = useMemo<ExpiringItem[]>(() => {
     const items: ExpiringItem[] = [
       { id: '1', name: 'Spinach', est_expiry_date: new Date().toISOString(), daysRemaining: 0 },
       { id: '2', name: 'Greek yogurt', est_expiry_date: new Date(Date.now() + 2*86400000).toISOString(), daysRemaining: 2 },
+      { id: '3', name: 'Leftover rice', est_expiry_date: new Date(Date.now() - 1*86400000).toISOString(), daysRemaining: -1 },
     ];
-    // Only include items expiring within the next 24h
-    return items.filter((it) => it.daysRemaining <= 1);
+    // Only include items expiring today or tomorrow; exclude expired
+    return items
+      .map((it) => ({ ...it, daysRemaining: daysUntil(it.est_expiry_date) }))
+      .filter((it) => it.daysRemaining === 0 || it.daysRemaining === 1);
   }, []);
 
   if (!expiringSoon.length) {
@@ -31,20 +41,23 @@ export default function Alerts() {
   }
 
   return (
-    <SurfaceCard tone="warning" style={styles.card}>
+    <SurfaceCard tone="default" style={[styles.card, { backgroundColor: palette.dangerSurface, borderColor: palette.danger }]}>
       <View style={styles.headerRow}>
-        <IconSymbol name="exclamationmark.triangle.fill" size={18} color={palette.warning} />
+        <IconSymbol name="exclamationmark.triangle.fill" size={18} color={palette.danger} />
         <ThemedText type="subtitle">Expiring Soon</ThemedText>
       </View>
       <View style={styles.list}>
-        {expiringSoon.map((item) => (
-          <View key={item.id} style={styles.itemRow}>
-            <ThemedText style={styles.itemName}>{item.name}</ThemedText>
-            <ThemedText style={{ color: palette.warning, fontWeight: '600' }}>
-              {item.daysRemaining <= 0 ? 'Today' : 'Tomorrow'}
-            </ThemedText>
-          </View>
-        ))}
+        {expiringSoon.map((item) => {
+          const isToday = item.daysRemaining === 0;
+          const color = isToday ? palette.danger : palette.warning;
+          const label = isToday ? 'Today' : 'Tomorrow';
+          return (
+            <View key={item.id} style={styles.itemRow}>
+              <ThemedText style={styles.itemName}>{item.name}</ThemedText>
+              <ThemedText style={{ color, fontWeight: '600' }}>{label}</ThemedText>
+            </View>
+          );
+        })}
       </View>
     </SurfaceCard>
   );

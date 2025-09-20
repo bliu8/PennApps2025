@@ -37,6 +37,7 @@ const MAPPING = {
   'archivebox.fill': 'inventory',
   'camera.fill': 'photo-camera',
   'gearshape.fill': 'settings',
+  'person.fill': 'person',
   'arrow.up.left.and.arrow.down.right': 'open-in-full',
   'chevron.left': 'chevron-left',
   'dollarsign.circle.fill': 'attach-money',

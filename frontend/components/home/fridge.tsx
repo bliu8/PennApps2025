@@ -31,7 +31,16 @@ function daysUntil(dateIso: string): number {
   const today = new Date();
   const target = new Date(dateIso);
   const ms = target.setHours(0,0,0,0) - today.setHours(0,0,0,0);
-  return Math.ceil(ms / 86400000);
+  // Use floor for future dates, negative for past days
+  return Math.floor(ms / 86400000);
+}
+
+function expiryLabel(daysDiff: number): string {
+  if (daysDiff === 0) return 'Today';
+  if (daysDiff === 1) return 'Tomorrow';
+  if (daysDiff === -1) return 'yesterday';
+  if (daysDiff < -1) return `${Math.abs(daysDiff)}d ago`;
+  return `${daysDiff}d`;
 }
 
 function capitalize(label: string): string {
@@ -83,6 +92,16 @@ export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
       unitsPerDisplay: 1,
       input_date: new Date(Date.now() - 1*86400000).toISOString(),
       est_expiry_date: new Date(Date.now() + 2*86400000).toISOString(),
+    },
+    {
+      id: 'it-5',
+      name: 'Avocado',
+      quantity: 1,
+      baseUnit: 'pieces',
+      displayUnit: 'avocado',
+      unitsPerDisplay: 1,
+      input_date: new Date(Date.now() - 6*86400000).toISOString(),
+      est_expiry_date: new Date(Date.now() - 2*86400000).toISOString(),
     },
   ]);
 
@@ -161,12 +180,14 @@ export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
 
   function renderItem({ item }: { item: InventoryItem }) {
     const days = daysUntil(item.est_expiry_date);
-    const urgency = days <= 0 ? 'today' : days <= 2 ? 'soon' : 'normal';
-    const badgeColor = urgency === 'today'
-      ? Colors.light.danger
-      : urgency === 'soon'
-      ? Colors.light.warning
-      : Colors.light.tabIconDefault;
+    const isExpired = days < 0;
+    const urgency = days === 0 ? 'today' : days === 1 ? 'tomorrow' : days <= 2 && days > 1 ? 'soon' : isExpired ? 'expired' : 'normal';
+    const badgeColor =
+      urgency === 'today' || urgency === 'expired'
+        ? Colors.light.danger
+        : urgency === 'tomorrow' || urgency === 'soon'
+        ? Colors.light.warning
+        : Colors.light.tabIconDefault;
     const badgeBackground = urgency === 'normal' ? Colors.light.cardMuted : `${badgeColor}22`;
     const badgeBorder = urgency === 'normal' ? Colors.light.border : `${badgeColor}55`;
     return (
@@ -177,7 +198,7 @@ export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
           </View>
           <View style={[styles.badge, { backgroundColor: badgeBackground, borderColor: badgeBorder }]}> 
             <IconSymbol name="clock.fill" size={14} color={badgeColor} />
-            <ThemedText style={[styles.badgeText, { color: badgeColor }]}>{days <= 0 ? 'Today' : `${days}d`}</ThemedText>
+            <ThemedText style={[styles.badgeText, { color: badgeColor }]}>{expiryLabel(days)}</ThemedText>
           </View>
         </View>
 

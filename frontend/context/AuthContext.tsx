@@ -18,6 +18,7 @@ type AuthContextValue = {
   loginWithApple: () => Promise<void>;
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
+  updateDisplayName: (name: string) => void;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
@@ -369,6 +370,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginWithApple,
       loginWithGoogle,
       logout,
+      updateDisplayName: (name: string) => setUser((prev) => (prev ? { ...prev, name } : prev)),
     }),
     [status, accessToken, user, error, loginWithApple, loginWithGoogle, logout],
   );

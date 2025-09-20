@@ -9,18 +9,18 @@ import { Colors } from '@/constants/theme';
 import { useAuthContext } from '@/context/AuthContext';
 import Stats from '../../components/home/stats';
 
-function useGreeting() {
-  return useMemo(() => {
-    const hour = new Date().getHours();
-    if (hour < 12) return 'Good morning';
-    if (hour < 18) return 'Good afternoon';
-    return 'Good evening';
-  }, []);
-}
+// function useGreeting() {
+//   return useMemo(() => {
+//     const hour = new Date().getHours();
+//     if (hour < 12) return 'Good morning';
+//     if (hour < 18) return 'Good afternoon';
+//     return 'Good evening';
+//   }, []);
+// }
 
 export default function HomeScreen() {
   const palette = Colors.light;
-  const greeting = useGreeting();
+  // const greeting = useGreeting();
   const { user } = useAuthContext();
   const displayName = useMemo(() => {
     if (user?.name) return user.name.split(' ')[0];
@@ -37,10 +37,10 @@ export default function HomeScreen() {
       >
         <View style={styles.header}>
           <View>
-            <ThemedText type="title">Hi </ThemedText>
-            <ThemedText style={[styles.subtitle, { color: palette.subtleText }]}> 
+            <ThemedText type="title">Hi {displayName}!</ThemedText>
+            {/* <ThemedText style={[styles.subtitle, { color: palette.subtleText }]}> 
               {greeting}, {displayName}!
-            </ThemedText>
+            </ThemedText> */}
           </View>
         </View>
 

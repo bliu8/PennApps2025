@@ -15,14 +15,14 @@ npm run dev
 
 **Required environment variables**
 
-| Name | Purpose |
-| --- | --- |
-| `MONGODB_URI` | Connection string for your MongoDB deployment |
-| `MONGODB_DB_NAME` | Logical database name (defaults to `leftys`) |
-| `GOOGLE_VISION_API_KEY` | Optional: powers label OCR for scan uploads |
-| `GOOGLE_GEMINI_API_KEY` | Optional: enables live Gemini nudges + listing coach |
-| `GOOGLE_GEMINI_MODEL` | Optional: override model (defaults to `gemini-1.5-flash`) |
-| `SEED_DATABASE` | Set to `true` **only** when you want demo data inserted |
+| Name                    | Purpose                                                           |
+| ----------------------- | ----------------------------------------------------------------- |
+| `MONGODB_URI`           | Connection string for your MongoDB deployment                     |
+| `MONGODB_DB_NAME`       | Logical database name (defaults to `leftys`)                      |
+| `GOOGLE_VISION_API_KEY` | Optional: powers label OCR for scan uploads                       |
+| `GOOGLE_GEMINI_API_KEY` | Optional: enables live Gemini nudges + listing coach              |
+| `GOOGLE_GEMINI_MODEL`   | Optional: override model (defaults to `gemini-2.5-flash-preview`) |
+| `SEED_DATABASE`         | Set to `true` **only** when you want demo data inserted           |
 
 > :bulb: When you point the app at a real database (Atlas, DocumentDB, etc.), leave `SEED_DATABASE` unset or `false` to avoid placeholder content.
 
@@ -32,6 +32,7 @@ New API endpoints:
 * `GET /api/impact` — aggregated climate metrics sourced from MongoDB.
 * `GET /api/nudges` — Gemini-generated behavioural nudges (falls back gracefully when the key is missing).
 * `POST /api/ai/listing-assistant` — request listing copy, pickup defaults, and climate blurbs from Gemini.
+
 
 ### Expo app
 

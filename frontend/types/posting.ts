@@ -19,4 +19,6 @@ export type Posting = {
   distanceLabel?: string;
   coordinates: Coordinates | null;
   createdAt: string;
+  impactNarrative?: string;
+  tags?: string[];
 };

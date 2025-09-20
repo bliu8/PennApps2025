@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { SurfaceCard } from '@/components/ui/surface-card';
@@ -28,35 +29,17 @@ export default function ScanScreen() {
         <View style={styles.header}>
           <View>
             <ThemedText type="title">Fridge</ThemedText>
-            <ThemedText style={[styles.subtitle, { color: palette.subtleText }]}>
-              Items you have at home, {displayName}
-            </ThemedText>
           </View>
+          <Pressable onPress={() => router.push('/settings')} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+            <IconSymbol name="gearshape.fill" size={22} color={palette.icon} />
+          </Pressable>
         </View>
 
         <SurfaceCard tone="default" style={styles.fridgeCard}>
           <ThemedText type="subtitle">Your items</ThemedText>
           <ThemedText style={{ color: palette.subtleText }}>
-            Placeholder list of items in your fridge.
+            Nothing here yet — add something from the home screen.
           </ThemedText>
-        </SurfaceCard>
-
-        <SurfaceCard tone="highlight" style={styles.settingsCard}>
-          <ThemedText type="subtitle">Settings</ThemedText>
-          <View style={styles.settingsList}>
-            <Pressable style={styles.settingsRow} onPress={() => { /* TODO: change name */ }}>
-              <IconSymbol name="person.fill" size={18} color={palette.tint} />
-              <ThemedText style={styles.settingsText}>Change name</ThemedText>
-            </Pressable>
-            <Pressable style={styles.settingsRow} onPress={() => { /* TODO: change pfp */ }}>
-              <IconSymbol name="camera.fill" size={18} color={palette.tint} />
-              <ThemedText style={styles.settingsText}>Change profile photo</ThemedText>
-            </Pressable>
-            <Pressable style={styles.settingsRow} onPress={() => { /* TODO: logout */ }}>
-              <IconSymbol name="arrowshape.turn.up.left.fill" size={18} color={palette.tint} />
-              <ThemedText style={styles.settingsText}>Log out</ThemedText>
-            </Pressable>
-          </View>
         </SurfaceCard>
 
         {/* Future: integrate scans/history back here if we want to keep it */}
@@ -74,6 +57,7 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
+    paddingTop: 12,
     paddingBottom: 32,
     gap: 24,
   },
@@ -93,17 +77,5 @@ const styles = StyleSheet.create({
   },
   settingsCard: {
     gap: 12,
-  },
-  settingsList: {
-    gap: 12,
-  },
-  settingsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-    paddingVertical: 10,
-  },
-  settingsText: {
-    fontSize: 16,
   },
 });

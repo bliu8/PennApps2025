@@ -11,6 +11,8 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors.light.tint,
         tabBarInactiveTintColor: Colors.light.tabIconDefault,
+        tabBarShowLabel: false,
+        tabBarIconStyle: { marginTop: 4 },
         tabBarStyle: {
           backgroundColor: Colors.light.card,
           borderTopColor: Colors.light.border,
@@ -36,7 +38,7 @@ export default function TabLayout() {
         name="scan"
         options={{
           title: 'Fridge',
-          tabBarIcon: ({ color }) => <IconSymbol size={26} name="gearshape.fill" color={color} />,
+          tabBarIcon: ({ color }) => <IconSymbol size={26} name="archivebox.fill" color={color} />,
         }}
       />
     </Tabs>

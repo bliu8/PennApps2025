@@ -3,13 +3,15 @@ import { ScrollView, StyleSheet, View, Pressable } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
-import { SurfaceCard } from '@/components/ui/surface-card';
 import { Colors } from '@/constants/theme';
 import { usePostings } from '@/hooks/use-postings';
 import { Posting } from '@/types/posting';
 import { getMapsConfigErrorMessage } from '@/utils/maps-config';
+import { AppIcon } from '@/components/ui/app-icon';
+import { PostCard } from '@/components/ui/post-card';
 
 const DEFAULT_REGION: Region = {
   latitude: 39.9526,
@@ -31,11 +33,28 @@ function createRegionFromPosting(posting: Posting): Region {
   };
 }
 
+function MapToggle({ onSelect, viewMode }: { onSelect: (viewMode: 'map' | 'list') => void; viewMode: 'map' | 'list' }) {
+  return (
+    <View style={styles.toggleGroup}>
+      <Pressable onPress={() => onSelect('map')} style={[styles.toggleItem, viewMode === 'map' && styles.toggleItemActive]}>
+        <ThemedText style={[styles.toggleLabel, viewMode === 'map' && styles.toggleLabelActive]}>Map</ThemedText>
+      </Pressable>
+      <Pressable onPress={() => onSelect('list')} style={[styles.toggleItem, viewMode === 'list' && styles.toggleItemActive]}>
+        <ThemedText style={[styles.toggleLabel, viewMode === 'list' && styles.toggleLabelActive]}>List</ThemedText>
+      </Pressable>
+    </View>
+  );
+}
+  
+  
+
+
 export default function ExploreScreen() {
   const palette = Colors.light;
   const { postings } = usePostings();
   const [userRegion, setUserRegion] = useState<Region | null>(null);
   const [locationDenied, setLocationDenied] = useState(false);
+  const [viewMode, setViewMode] = useState<'map' | 'list'>('map');
 
   // Check for Google Maps configuration issues (kept for future error surfacing)
   const mapsConfigError = getMapsConfigErrorMessage();
@@ -69,6 +88,7 @@ export default function ExploreScreen() {
   }, [userRegion, postings]);
 
   const mapKey = `${mapRegion.latitude.toFixed(3)}-${mapRegion.longitude.toFixed(3)}`;
+  
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}> 
@@ -76,12 +96,17 @@ export default function ExploreScreen() {
         style={styles.container}
         contentContainerStyle={[styles.content, { backgroundColor: palette.background }]}
         showsVerticalScrollIndicator={false}>
-        <View style={styles.heroHeader}>
-          <ThemedText type="title">Map</ThemedText>
-        </View>
+          <View style={styles.headerRow}>
+            <ThemedText type="title">Explore</ThemedText>
+            <MapToggle 
+            onSelect={setViewMode}
+            viewMode={viewMode}
+          />
+          </View>
+        
 
-        <SurfaceCard tone="info" style={styles.mapCard}>
-          <View style={styles.mapPreview}>
+        {viewMode === 'map' ? (
+          <View style={styles.mapContainer}>
             <MapView
               key={mapKey}
               style={StyleSheet.absoluteFill}
@@ -105,16 +130,25 @@ export default function ExploreScreen() {
                   />
                 ))}
             </MapView>
+            <Pressable
+              accessibilityLabel="Open fullscreen map"
+              onPress={() => router.push('/map-fullscreen')}
+              style={({ pressed }) => [styles.fab, { opacity: pressed ? 0.8 : 1 }]}
+            >
+              <AppIcon name="arrow.up.left.and.arrow.down.right" size={22} color="#000" />
+            </Pressable>
           </View>
-          <Pressable
-            onPress={() => { /* TODO: navigate to a dedicated fullscreen map view */ }}
-            style={({ pressed }) => [styles.fullscreenButton, { opacity: pressed ? 0.85 : 1 }]}
-          >
-            <ThemedText style={styles.fullscreenButtonText}>Open fullscreen</ThemedText>
-          </Pressable>
-        </SurfaceCard>
+        ) : (
+          <View style={styles.listContainer}>
+            <View style={{ gap: 12 }}>
+              {postings.map((p) => (
+                <PostCard key={p.id} post={p} />
+              ))}
+            </View>
+          </View>
+        )}
 
-        {/* Future: error card, loading indicator, filters, and feed will return here */}
+        {/* Future: error card, loading indicator will return here */}
       </ScrollView>
     </SafeAreaView>
   );
@@ -157,35 +191,132 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingHorizontal: 20,
+    paddingTop: 16,
     paddingBottom: 32,
-    gap: 24,
-  },
-  heroHeader: {
-    gap: 8,
-  },
-  subtitle: {
-    fontSize: 16,
-    lineHeight: 24,
-  },
-  mapCard: {
     gap: 16,
   },
-  mapPreview: {
-    borderRadius: 24,
-    height: 260,
-    overflow: 'hidden',
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0,0,0,0.06)',
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
-  fullscreenButton: {
-    alignSelf: 'center',
-    backgroundColor: Colors.light.tint,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+  toggleGroup: {
+    flexDirection: 'row',
+    backgroundColor: 'rgba(0,0,0,0.05)',
+    borderRadius: 999,
+    padding: 4,
   },
-  fullscreenButtonText: {
-    color: '#ffffff',
+  toggleItem: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+  },
+  toggleItemActive: {
+    backgroundColor: '#ffffff',
+  },
+  toggleLabel: {
+    fontSize: 14,
+    color: '#55645E',
+  },
+  toggleLabelActive: {
+    color: '#000000',
     fontWeight: '600',
+  },
+  mapContainer: {
+    height: 360,
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  fab: {
+    position: 'absolute',
+    right: 12,
+    bottom: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#ffffff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000000',
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+  },
+  listContainer: {
+    gap: 12,
+  },
+  dropdown: {
+    position: 'relative',
+  },
+  dropdownButton: {
+    backgroundColor: '#ffffff',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,0,0,0.08)',
+  },
+  dropdownLabel: {
+    fontSize: 14,
+    color: '#000',
+    fontWeight: '600',
+  },
+  dropdownMenu: {
+    position: 'absolute',
+    top: 44,
+    right: 0,
+    backgroundColor: '#ffffff',
+    borderRadius: 12,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: 'rgba(0,0,0,0.08)',
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    elevation: 2,
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  dropdownItemActive: {
+    backgroundColor: 'rgba(0,0,0,0.05)',
+  },
+  dropdownItemLabel: {
+    fontSize: 14,
+    color: '#333',
+  },
+  dropdownItemLabelActive: {
+    fontWeight: '700',
+    color: '#000',
+  },
+  sliderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  sliderLabel: {
+    fontSize: 12,
+    color: '#55645E',
+  },
+  sliderTrack: {
+    flex: 1,
+    height: 16,
+    borderRadius: 999,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  sliderFill: {
+    height: '100%',
+    backgroundColor: Colors.light.tint,
+  },
+  sliderValue: {
+    fontSize: 12,
+    color: '#000',
+    fontWeight: '700',
+    marginLeft: 4,
   },
 });

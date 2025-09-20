@@ -24,6 +24,8 @@ export const Colors = {
     infoSurface: '#E8F1FC',
     warning: '#C87A2B',
     warningSurface: warmHighlight,
+    danger: '#D64545',
+    dangerSurface: '#FDECEC',
     accent: brandBright,
   },
   dark: {
@@ -45,6 +47,8 @@ export const Colors = {
     infoSurface: '#192435',
     warning: '#E0B059',
     warningSurface: '#2B2218',
+    danger: '#FF6B6B',
+    dangerSurface: '#2B1E1E',
     accent: '#58C39C',
   },
 };

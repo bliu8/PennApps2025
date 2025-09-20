@@ -9,11 +9,13 @@ import { Colors } from '@/constants/theme';
 import { useAuthContext } from '@/context/AuthContext';
 import Stats from '../../components/home/stats';
 import Alerts from '../../components/home/alerts';
+import Fridge from '../../components/home/fridge';
+import { consumeInventoryItem, deleteInventoryItem, updateInventoryQuantity } from '@/services/api';
 
 export default function HomeScreen() {
   const palette = Colors.light;
   // const greeting = useGreeting();
-  const { user } = useAuthContext();
+  const { user, accessToken } = useAuthContext();
   const displayName = useMemo(() => {
     if (user?.name) return user.name.split(' ')[0];
     if (user?.email) return user.email.split('@')[0];
@@ -24,17 +26,11 @@ export default function HomeScreen() {
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}> 
       <View style={[styles.container, { backgroundColor: palette.background }]}> 
         <View style={styles.header}>
-          <View>
             <ThemedText type="title">Hey {displayName}!</ThemedText>
-            {/* <ThemedText style={[styles.subtitle, { color: palette.subtleText }]}> 
-              {greeting}, {displayName}!
-            </ThemedText> */}
-          </View>
         </View>
         <Alerts />
         <Stats />
         
-
         <SurfaceCard
           onPress={() => { console.log('UPLOAD YOUR FOOD'); }}
           style={[
@@ -56,8 +52,7 @@ export default function HomeScreen() {
             <ThemedText type="subtitle">Upload your food</ThemedText>
           </View>
         </SurfaceCard>
-
-        {/* Future: quick composer, nudges, metrics, and feed will live here */}
+        
       </View>
     </SafeAreaView>
   );

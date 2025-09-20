@@ -41,7 +41,7 @@ export default function Alerts() {
           <View key={item.id} style={styles.itemRow}>
             <ThemedText style={styles.itemName}>{item.name}</ThemedText>
             <ThemedText style={{ color: palette.warning, fontWeight: '600' }}>
-              {item.daysRemaining <= 0 ? 'today' : 'tomorrow'}
+              {item.daysRemaining <= 0 ? 'Today' : 'Tomorrow'}
             </ThemedText>
           </View>
         ))}

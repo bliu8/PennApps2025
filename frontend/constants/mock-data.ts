@@ -17,10 +17,24 @@ export const fallbackImpactMetrics: ImpactMetric[] = [
     icon: 'leaf.fill',
   },
   {
-    id: 'wins-this-week',
+    id: 'methane-prevented',
+    label: 'Methane prevented',
+    value: '5.4 lbs',
+    helperText: 'Estimated landfill methane avoided.',
+    icon: 'wind',
+  },
+  {
+    id: 'water-saved',
+    label: 'Water saved',
+    value: '210 gal',
+    helperText: 'Equivalent to three weeks of showers.',
+    icon: 'drop.fill',
+  },
+  {
+    id: 'pickup-speed',
     label: 'Quick pickup streak',
-    value: '4',
-    helperText: 'Average pickup time: 22 minutes.',
+    value: '22 min',
+    helperText: 'Median time from accept to handoff.',
     icon: 'sparkles',
   },
 ];

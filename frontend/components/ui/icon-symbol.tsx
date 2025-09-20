@@ -35,6 +35,12 @@ const MAPPING = {
   calendar: 'calendar-today',
   'clock.arrow.circlepath': 'history',
   'location.slash': 'location-off',
+  'tag.fill': 'local-offer',
+  'person.crop.circle': 'person',
+  'drop.fill': 'water-drop',
+  wind: 'air',
+  'megaphone.fill': 'campaign',
+  'bell.badge.fill': 'notifications-active',
 } as IconMapping;
 
 export type { IconSymbolName };

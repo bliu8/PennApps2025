@@ -14,6 +14,7 @@ import { Colors } from '@/constants/theme';
 import { createPosting, requestListingAssist, ListingAssistPayload } from '@/services/api';
 import { Posting } from '@/types/posting';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { resolvePrice, resolvePriceLabel, type PriceOption } from '@/utils/pricing';
 
 type QuickPostComposerProps = {
   onPostCreated?: (posting: Posting) => void;
@@ -34,6 +35,8 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [priceOption, setPriceOption] = useState<PriceOption>('low');
+  const [customPrice, setCustomPrice] = useState('1.00');
 
   const parsedAllergens = useMemo(
     () =>
@@ -55,6 +58,10 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
     ],
     [palette.card, palette.border, palette.text],
   );
+
+  const resolvedPrice = useMemo(() => resolvePrice(priceOption, customPrice), [priceOption, customPrice]);
+
+  const resolvedPriceLabel = useMemo(() => resolvePriceLabel(resolvedPrice), [resolvedPrice]);
 
   const handleListingAssist = useCallback(async () => {
     setAiLoading(true);
@@ -90,6 +97,8 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
     setImpactNarrative('');
     setTags([]);
     setAiSource(null);
+    setPriceOption('low');
+    setCustomPrice('1.00');
   }, []);
 
   const handleSubmit = useCallback(async () => {
@@ -114,6 +123,8 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
         allergens: parsedAllergens,
         impactNarrative: impactNarrative.trim() || undefined,
         tags,
+        price: resolvedPrice,
+        priceLabel: resolvedPriceLabel,
       });
       onPostCreated?.(posting);
       setSuccess('Posted! We will nudge nearby verified neighbors.');
@@ -133,6 +144,8 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
     tags,
     onPostCreated,
     resetForm,
+    resolvedPrice,
+    resolvedPriceLabel,
   ]);
 
   return (
@@ -210,6 +223,36 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
             placeholderTextColor={palette.subtleText}
             autoCapitalize="none"
           />
+        </View>
+
+        <View style={styles.fieldGroup}>
+          <ThemedText style={styles.label}>Contribution price</ThemedText>
+          <ThemedText style={[styles.helper, { color: palette.subtleText }]}>Keep it low by default so buyers say yes faster.</ThemedText>
+          <View style={styles.priceOptionRow}>
+            <Pill tone={priceOption === 'free' ? 'info' : 'default'} onPress={() => setPriceOption('free')}>
+              Free
+            </Pill>
+            <Pill tone={priceOption === 'low' ? 'brand' : 'default'} onPress={() => setPriceOption('low')} iconName="tag.fill">
+              $1 default
+            </Pill>
+            <Pill tone={priceOption === 'custom' ? 'info' : 'default'} onPress={() => setPriceOption('custom')}>
+              Custom
+            </Pill>
+          </View>
+          {priceOption === 'custom' ? (
+            <TextInput
+              style={[inputStyle, styles.customPriceInput]}
+              keyboardType="decimal-pad"
+              value={customPrice}
+              onChangeText={(value) => setCustomPrice(value.replace(/[^0-9.]/g, ''))}
+              placeholder="1.25"
+              placeholderTextColor={palette.subtleText}
+            />
+          ) : null}
+          <SurfaceCard tone="success" style={styles.priceSummary}>
+            <ThemedText type="defaultSemiBold">{resolvedPriceLabel}</ThemedText>
+            <ThemedText style={[styles.helper, { color: palette.subtleText }]}>Low-friction pricing prevented more than 30 lbs of waste last month.</ThemedText>
+          </SurfaceCard>
         </View>
 
         {impactNarrative ? (
@@ -317,5 +360,19 @@ const styles = StyleSheet.create({
   feedback: {
     fontSize: 14,
     lineHeight: 20,
+  },
+  priceOptionRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 8,
+  },
+  customPriceInput: {
+    width: 140,
+  },
+  priceSummary: {
+    marginTop: 12,
+    gap: 4,
+    padding: 16,
   },
 });

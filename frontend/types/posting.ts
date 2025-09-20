@@ -5,6 +5,8 @@ export type Coordinates = {
 
 export type PostingStatus = 'open' | 'reserved' | 'draft';
 
+import { ImpactEstimate } from './impact';
+
 export type Posting = {
   id: string;
   title: string;
@@ -21,4 +23,8 @@ export type Posting = {
   createdAt: string;
   impactNarrative?: string;
   tags?: string[];
+  price?: number | null;
+  priceLabel?: string | null;
+  expiryDate?: string | null;
+  impactEstimates?: ImpactEstimate | null;
 };

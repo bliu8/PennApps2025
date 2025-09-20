@@ -1,5 +1,9 @@
 import { Db } from 'mongodb';
 
+import { estimateImpactFromScan } from './parsers.js';
+
+const ACCOUNT_OWNER_ID = 'demo-user';
+
 export async function seedDatabase(db: Db) {
   const postings = db.collection('postings');
   const existing = await postings.estimatedDocumentCount();
@@ -25,6 +29,11 @@ export async function seedDatabase(db: Db) {
       impactNarrative: 'Redirects pantry extras and saved ~6 lbs of CO₂ last pickup.',
       tags: ['ZeroWaste', 'SnackRescue'],
       createdAt: now,
+      ownerId: ACCOUNT_OWNER_ID,
+      price: 1,
+      priceLabel: '$1 climate-friendly contribution',
+      expiryDate: new Date(now.getTime() + 48 * 60 * 60 * 1000),
+      impactEstimates: estimateImpactFromScan({ allergens: ['gluten', 'nuts'], rawText: '4 sealed bars' }),
     },
     {
       title: 'Citrus seltzer 6-pack',
@@ -40,6 +49,11 @@ export async function seedDatabase(db: Db) {
       impactNarrative: 'Chilled beverages keep neighbors hydrated without buying new plastic.',
       tags: ['Hydration', 'PlasticFree'],
       createdAt: now,
+      ownerId: ACCOUNT_OWNER_ID,
+      price: 0,
+      priceLabel: 'Free · pay it forward',
+      expiryDate: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+      impactEstimates: estimateImpactFromScan({ allergens: [], rawText: '6 cans seltzer 72 oz' }),
     },
     {
       title: 'Tomato basil pasta kit',
@@ -55,6 +69,11 @@ export async function seedDatabase(db: Db) {
       impactNarrative: 'Pantry staple rescue — enough for 6 servings and 4 lbs of waste avoided.',
       tags: ['Pantry', 'FamilyMeal'],
       createdAt: now,
+      ownerId: ACCOUNT_OWNER_ID,
+      price: 1.5,
+      priceLabel: '$1.50 family bundle (suggested)',
+      expiryDate: new Date(now.getTime() + 72 * 60 * 60 * 1000),
+      impactEstimates: estimateImpactFromScan({ allergens: ['gluten'], rawText: '2 boxed kits + sauce pouch' }),
     },
   ]);
 }

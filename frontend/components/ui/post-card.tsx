@@ -28,6 +28,11 @@ export function PostCard({ post, onPress }: PostCardProps) {
             {post.title}
           </ThemedText>
           <ThemedText style={[styles.quantity, { color: palette.subtleText }]}>{post.quantityLabel}</ThemedText>
+          <View style={styles.priceRow}>
+            <Pill tone="info" compact iconName="tag.fill">
+              {post.priceLabel ?? (post.price === 0 ? 'Free · pay it forward' : `$${post.price?.toFixed(2) ?? '1.00'} climate share`)}
+            </Pill>
+          </View>
         </View>
         <Pill tone={post.status === 'reserved' ? 'warning' : 'brand'} compact iconName={post.status === 'reserved' ? 'clock.fill' : 'checkmark.seal.fill'}>
           {post.status === 'reserved' ? 'Reserved' : 'Open now'}
@@ -118,6 +123,9 @@ const styles = StyleSheet.create({
   },
   quantity: {
     fontSize: 14,
+  },
+  priceRow: {
+    marginTop: 4,
   },
   avatar: {
     width: 44,

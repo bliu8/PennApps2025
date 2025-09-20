@@ -5,6 +5,7 @@ import { Posting } from '@/types/posting';
 import { ScanRecord } from '@/types/scans';
 import { ImpactResponse } from '@/types/impact';
 import { NudgesResponse } from '@/types/nudge';
+import { AccountOverview, NotificationPayload } from '@/types/account';
 
 type ApiPosting = Omit<Posting, 'createdAt' | 'distanceLabel'> & {
   createdAt?: string;
@@ -16,6 +17,13 @@ type PostingsResponse = {
 
 type ScansResponse = {
   scans: ScanRecord[];
+};
+
+type AccountOverviewResponse = AccountOverview;
+
+type NotificationsResponse = {
+  notifications: NotificationPayload[];
+  shareRatePercent: number;
 };
 
 export type ListingAssistantResponse = {
@@ -38,6 +46,9 @@ export type CreatePostingPayload = {
   allergens: string[];
   impactNarrative?: string;
   tags?: string[];
+  price?: number;
+  priceLabel?: string;
+  expiryDate?: string;
 };
 
 export type ListingAssistPayload = {
@@ -51,12 +62,33 @@ export type ListingAssistPayload = {
 function mapPosting(posting: ApiPosting): Posting {
   const pickupWindowLabel = posting.pickupWindowLabel ?? 'Add a pickup window';
   const distanceLabel = typeof posting.distanceKm === 'number' ? `${posting.distanceKm.toFixed(1)} km away` : 'Distance pending';
+  const price = typeof posting.price === 'number' ? posting.price : null;
+  const priceLabel =
+    posting.priceLabel ?? (price === null || price === 0 ? 'Free · pay it forward' : `$${price.toFixed(2)} climate-friendly share`);
+  const expiryDate = posting.expiryDate ?? null;
+  const impactEstimates = posting.impactEstimates ?? null;
 
   return {
     ...posting,
     pickupWindowLabel,
     distanceLabel,
     createdAt: posting.createdAt ?? new Date().toISOString(),
+    price,
+    priceLabel,
+    expiryDate,
+    impactEstimates,
+  };
+}
+
+function normalizeInventoryItem<T extends { price?: number | null; priceLabel?: string | null }>(item: T): T {
+  const price = typeof item.price === 'number' ? item.price : null;
+  const priceLabel =
+    item.priceLabel ?? (price === null || price === 0 ? 'Free · pay it forward' : `$${price.toFixed(2)} climate-friendly share`);
+
+  return {
+    ...item,
+    price,
+    priceLabel,
   };
 }
 
@@ -137,6 +169,8 @@ export async function fetchScans(): Promise<ScanRecord[]> {
   return data.scans.map((scan) => ({
     ...scan,
     createdAt: scan.createdAt ?? new Date().toISOString(),
+    impactEstimates: scan.impactEstimates ?? null,
+    detectionSource: scan.detectionSource ?? 'fallback',
   }));
 }
 
@@ -163,5 +197,33 @@ export async function uploadScan(uri: string, fileName: string, mimeType?: strin
   return {
     ...data.scan,
     createdAt: data.scan.createdAt ?? new Date().toISOString(),
+    impactEstimates: data.scan.impactEstimates ?? null,
+    detectionSource: data.scan.detectionSource ?? 'fallback',
   };
+}
+
+export async function fetchAccountOverview(): Promise<AccountOverview> {
+  const response = await fetch(`${API_BASE_URL}/accounts/overview`);
+  if (!response.ok) {
+    throw new Error(`Unable to load account overview (${response.status})`);
+  }
+
+  const data = (await response.json()) as AccountOverviewResponse;
+  return {
+    ...data,
+    account: {
+      ...data.account,
+      inventory: data.account.inventory.map((item) => normalizeInventoryItem(item)),
+      expiringSoon: data.account.expiringSoon.map((item) => normalizeInventoryItem(item)),
+    },
+  };
+}
+
+export async function fetchNotifications(): Promise<NotificationsResponse> {
+  const response = await fetch(`${API_BASE_URL}/notifications`);
+  if (!response.ok) {
+    throw new Error(`Unable to load notifications (${response.status})`);
+  }
+
+  return (await response.json()) as NotificationsResponse;
 }

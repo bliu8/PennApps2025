@@ -14,6 +14,8 @@ import { QuickPostComposer } from '@/components/home/quick-post-composer';
 import { usePostings } from '@/hooks/use-postings';
 import { useImpactMetrics } from '@/hooks/use-impact-metrics';
 import { useNudges } from '@/hooks/use-nudges';
+import { useNotifications } from '@/hooks/use-notifications';
+import { NotificationCard } from '@/components/account/notification-card';
 
 import { AiNudge } from '@/types/nudge';
 
@@ -34,6 +36,12 @@ export default function HomeScreen() {
   const nudgeParams = useMemo(() => ({ persona: 'Alex', focus: 'sustainable food sharing', count: 4 }), []);
   const { nudges, source: nudgeSource, loading: nudgesLoading, refresh: refreshNudges } = useNudges(nudgeParams);
   const { metrics, source: metricsSource, loading: metricsLoading, refresh: refreshMetrics } = useImpactMetrics();
+  const {
+    notifications,
+    shareRatePercent,
+    loading: notificationsLoading,
+    refresh: refreshNotifications,
+  } = useNotifications();
   const [activeNudgeIndex, setActiveNudgeIndex] = useState(0);
 
   const heroNudge: AiNudge = nudges[activeNudgeIndex % (nudges.length || 1)] ?? fallbackHeroMessages[0];
@@ -43,9 +51,9 @@ export default function HomeScreen() {
 
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([refresh(), refreshMetrics(), refreshNudges()]);
+    await Promise.all([refresh(), refreshMetrics(), refreshNudges(), refreshNotifications()]);
     setRefreshing(false);
-  }, [refresh, refreshMetrics, refreshNudges]);
+  }, [refresh, refreshMetrics, refreshNudges, refreshNotifications]);
 
   const handleNextNudge = useCallback(() => {
     setActiveNudgeIndex((prev) => (nudges.length > 0 ? (prev + 1) % nudges.length : prev));
@@ -75,6 +83,9 @@ export default function HomeScreen() {
             <ThemedText style={[styles.subtitle, { color: palette.subtleText }]}>
               {greeting}, Alex. Thanks for keeping food out of the bin.
             </ThemedText>
+            <Pill tone="info" compact iconName="megaphone.fill">
+              {shareRatePercent ? `${shareRatePercent}% neighbors shared this week` : 'Share to unlock nudges'}
+            </Pill>
           </View>
           <Pill tone="brand" iconName="sparkles" compact>
             Nearby radius · 2 km
@@ -122,6 +133,15 @@ export default function HomeScreen() {
             {nudgeSource === 'live' ? 'Gemini powered' : 'Sample nudges'}
           </Pill>
         </SurfaceCard>
+
+        {notificationsLoading && notifications.length === 0 ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="small" color={palette.tint} />
+            <ThemedText style={{ color: palette.subtleText }}>Loading smart nudges…</ThemedText>
+          </View>
+        ) : null}
+
+        {notifications.length > 0 ? <NotificationCard notification={notifications[0]} /> : null}
 
         <QuickPostComposer onPostCreated={handlePostCreated} />
 

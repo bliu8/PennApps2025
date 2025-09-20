@@ -9,12 +9,39 @@ type GeminiGenerationConfig = {
   maxOutputTokens?: number;
 };
 
-type GeminiContent = {
-  role: 'user' | 'model' | 'system';
-  parts: { text: string }[];
+type Base64Source = {
+  toString(encoding: 'base64'): string;
 };
 
-async function callGemini(prompt: string, options?: { systemInstruction?: string; generationConfig?: GeminiGenerationConfig }) {
+type GeminiContentPart =
+  | { text: string }
+  | {
+      inline_data: {
+        mime_type: string;
+        data: string;
+      };
+    };
+
+type GeminiContent = {
+  role: 'user' | 'model' | 'system';
+  parts: GeminiContentPart[];
+};
+
+type GeminiResponseCandidate = {
+  content?: {
+    parts?: { text?: string }[];
+  };
+};
+
+type GeminiCallOptions = {
+  systemInstruction?: string;
+  generationConfig?: GeminiGenerationConfig;
+};
+
+async function callGeminiWithContents(
+  contents: GeminiContent[],
+  options?: GeminiCallOptions,
+): Promise<GeminiResponseCandidate | null> {
   if (!config.googleGeminiApiKey) {
     return null;
   }
@@ -24,12 +51,7 @@ async function callGemini(prompt: string, options?: { systemInstruction?: string
     systemInstruction?: GeminiContent;
     generationConfig?: GeminiGenerationConfig;
   } = {
-    contents: [
-      {
-        role: 'user',
-        parts: [{ text: prompt }],
-      },
-    ],
+    contents,
   };
 
   if (options?.systemInstruction) {
@@ -52,13 +74,181 @@ async function callGemini(prompt: string, options?: { systemInstruction?: string
     },
   });
 
-  const candidate = response.data?.candidates?.[0];
+  const candidate = response.data?.candidates?.[0] as GeminiResponseCandidate | undefined;
   if (!candidate) {
     return null;
   }
 
-  const text = candidate.content?.parts?.map((part: { text?: string }) => part.text).filter(Boolean).join('\n');
+  return candidate;
+}
+
+async function callGemini(prompt: string, options?: GeminiCallOptions) {
+  const candidate = await callGeminiWithContents(
+    [
+      {
+        role: 'user',
+        parts: [{ text: prompt }],
+      },
+    ],
+    options,
+  );
+
+  if (!candidate) {
+    return null;
+  }
+
+  const text = candidate.content?.parts?.map((part) => part.text).filter(Boolean).join('\n');
   return text ?? null;
+}
+
+export type GeminiScanImpact = {
+  foodWasteDivertedLbs?: number;
+  co2AvoidedLbs?: number;
+  methaneAvoidedLbs?: number;
+  waterSavedGallons?: number;
+  source?: 'gemini' | 'heuristic';
+};
+
+export type GeminiScanInsights = {
+  title?: string;
+  detectedText: string;
+  allergens?: string[];
+  expiryDate?: string | null;
+  impact?: GeminiScanImpact;
+  notes?: string;
+};
+
+function extractTextFromCandidate(candidate: GeminiResponseCandidate | null): string | null {
+  if (!candidate?.content?.parts) {
+    return null;
+  }
+
+  const combined = candidate.content.parts
+    .map((part) => (typeof part.text === 'string' ? part.text : undefined))
+    .filter(Boolean)
+    .join('\n');
+
+  return combined.length > 0 ? combined : null;
+}
+
+function sanitizeJsonResponse(raw: string | null): string | null {
+  if (!raw) {
+    return null;
+  }
+
+  const trimmed = raw.trim();
+  if (trimmed.startsWith('```')) {
+    const withoutFence = trimmed.replace(/^```(?:json)?/i, '').replace(/```$/i, '').trim();
+    return withoutFence.length > 0 ? withoutFence : null;
+  }
+
+  return trimmed;
+}
+
+function keepAllergensWithinEnum(values: unknown[] | undefined): string[] {
+  if (!Array.isArray(values)) {
+    return [];
+  }
+
+  const allowed = new Set(['gluten', 'dairy', 'nuts', 'peanuts', 'soy', 'eggs', 'fish', 'shellfish', 'sesame']);
+  return values
+    .map((value) => String(value).trim().toLowerCase())
+    .filter((value) => allowed.has(value));
+}
+
+export async function analyzeScanWithGemini(
+  imageBuffer: Base64Source,
+  mimeType: string,
+): Promise<GeminiScanInsights | null> {
+  if (!config.googleGeminiApiKey) {
+    return null;
+  }
+
+  const contents: GeminiContent[] = [
+    {
+      role: 'user',
+      parts: [
+        {
+          text: [
+            'You are an OCR specialist helping a community food sharing app.',
+            'Read the attached image, then respond with JSON describing what you see.',
+            'The JSON schema must be:',
+            '{"title": string, "detectedText": string, "allergens": string[], "expiryDate": string|null, "impact": {"foodWasteDivertedLbs": number, "co2AvoidedLbs": number, "methaneAvoidedLbs": number, "waterSavedGallons": number}, "notes": string}.',
+            'Use ISO-8601 dates (YYYY-MM-DD) when you detect an expiry/best-by date.',
+            'Only include allergens from: gluten, dairy, nuts, peanuts, soy, eggs, fish, shellfish, sesame.',
+            'Estimate food waste diverted (lbs), CO2 avoided (lbs), methane avoided (lbs), and water saved (gallons).',
+            'If unsure, make a conservative assumption but still provide a numeric estimate.',
+            'Keep the notes field concise with at most one sentence.',
+          ].join(' '),
+        },
+        {
+          inline_data: {
+            mime_type: mimeType,
+            data: imageBuffer.toString('base64'),
+          },
+        },
+      ],
+    },
+  ];
+
+  try {
+    const candidate = await callGeminiWithContents(contents, {
+      generationConfig: { temperature: 0.2, topP: 0.8, maxOutputTokens: 768 },
+    });
+
+    const raw = extractTextFromCandidate(candidate);
+    const sanitized = sanitizeJsonResponse(raw);
+
+    if (!sanitized) {
+      return null;
+    }
+
+    const parsed = JSON.parse(sanitized) as {
+      title?: string;
+      detectedText?: string;
+      allergens?: unknown[];
+      expiryDate?: string | null;
+      impact?: GeminiScanImpact;
+      notes?: string;
+    };
+
+    const detectedText = parsed.detectedText?.trim() ?? '';
+    if (!detectedText) {
+      return null;
+    }
+
+    const allergens = keepAllergensWithinEnum(parsed.allergens);
+
+    const impact = parsed.impact
+      ? {
+          foodWasteDivertedLbs:
+            typeof parsed.impact.foodWasteDivertedLbs === 'number' ? parsed.impact.foodWasteDivertedLbs : undefined,
+          co2AvoidedLbs: typeof parsed.impact.co2AvoidedLbs === 'number' ? parsed.impact.co2AvoidedLbs : undefined,
+          methaneAvoidedLbs:
+            typeof parsed.impact.methaneAvoidedLbs === 'number' ? parsed.impact.methaneAvoidedLbs : undefined,
+          waterSavedGallons:
+            typeof parsed.impact.waterSavedGallons === 'number' ? parsed.impact.waterSavedGallons : undefined,
+          source: 'gemini' as const,
+        }
+      : undefined;
+
+    const expiryDate =
+      typeof parsed.expiryDate === 'string' && parsed.expiryDate.trim().length > 0
+        ? parsed.expiryDate.trim()
+        : null;
+
+    return {
+      title: parsed.title?.trim(),
+      detectedText,
+      allergens,
+      expiryDate,
+      impact,
+      notes: parsed.notes?.trim(),
+    };
+  } catch (error) {
+    console.error('Gemini scan analysis failed', error);
+    return null;
+  }
 }
 
 export type AiNudge = {

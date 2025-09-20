@@ -198,6 +198,12 @@ export default function ScanScreen() {
             <ThemedText style={{ color: palette.subtleText }}>
               We stored this record in MongoDB. Edit it in the dashboard or use it to fast-fill a posting.
             </ThemedText>
+            <Pill
+              tone={scanResult.detectionSource === 'gemini' ? 'success' : 'info'}
+              compact
+              iconName={scanResult.detectionSource === 'gemini' ? 'sparkles' : 'text.book.closed'}>
+              {scanResult.detectionSource === 'gemini' ? 'Gemini OCR insights' : 'Fallback parsing'}
+            </Pill>
             <View style={styles.resultRow}>
               <IconSymbol name="text.book.closed" size={18} color={palette.success} />
               <ThemedText style={styles.resultText}>{scanResult.title}</ThemedText>
@@ -223,6 +229,15 @@ export default function ScanScreen() {
             </View>
             {scanResult.notes ? (
               <ThemedText style={{ color: palette.subtleText }}>{scanResult.notes}</ThemedText>
+            ) : null}
+            {scanResult.impactEstimates ? (
+              <SurfaceCard tone="highlight" style={styles.impactSummary}>
+                <ThemedText type="defaultSemiBold">Climate lift</ThemedText>
+                <ThemedText style={{ color: palette.subtleText }}>
+                  Rescues {scanResult.impactEstimates.foodWasteDivertedLbs.toFixed(1)} lbs of food and avoids{' '}
+                  {scanResult.impactEstimates.co2AvoidedLbs.toFixed(1)} lbs CO₂e.
+                </ThemedText>
+              </SurfaceCard>
             ) : null}
           </SurfaceCard>
         ) : null}
@@ -303,6 +318,12 @@ export default function ScanScreen() {
                     {new Date(record.createdAt).toLocaleString()}
                   </ThemedText>
                 </View>
+                <Pill
+                  tone={record.detectionSource === 'gemini' ? 'success' : 'info'}
+                  compact
+                  iconName={record.detectionSource === 'gemini' ? 'sparkles' : 'text.book.closed'}>
+                  {record.detectionSource === 'gemini' ? 'Gemini OCR' : 'Fallback OCR'}
+                </Pill>
                 {record.expiryDate ? (
                   <ThemedText style={{ color: palette.subtleText }}>Expiry: {record.expiryDate}</ThemedText>
                 ) : null}
@@ -317,6 +338,11 @@ export default function ScanScreen() {
                 ) : null}
                 {record.notes ? (
                   <ThemedText style={{ color: palette.subtleText }}>{record.notes}</ThemedText>
+                ) : null}
+                {record.impactEstimates ? (
+                  <ThemedText style={{ color: palette.subtleText }}>
+                    Impact: {record.impactEstimates.foodWasteDivertedLbs.toFixed(1)} lbs saved · {record.impactEstimates.co2AvoidedLbs.toFixed(1)} lbs CO₂e
+                  </ThemedText>
                 ) : null}
               </View>
             ))
@@ -379,6 +405,10 @@ const styles = StyleSheet.create({
   },
   resultCard: {
     gap: 12,
+  },
+  impactSummary: {
+    gap: 8,
+    padding: 14,
   },
   aiAssistCard: {
     gap: 12,

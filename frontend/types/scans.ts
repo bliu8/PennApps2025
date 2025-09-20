@@ -1,3 +1,5 @@
+import { ImpactEstimate } from './impact';
+
 export type ScanRecord = {
   id: string;
   title: string;
@@ -7,4 +9,6 @@ export type ScanRecord = {
   notes?: string | null;
   mimeType?: string;
   createdAt: string;
+  impactEstimates?: ImpactEstimate | null;
+  detectionSource?: 'gemini' | 'vision' | 'fallback';
 };

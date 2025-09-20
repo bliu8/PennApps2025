@@ -5,8 +5,7 @@ import { SurfaceCard } from '@/components/ui/surface-card';
 import { Pill } from '@/components/ui/pill';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
-import { Posting } from '@/constants/mock-data';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { Posting } from '@/types/posting';
 
 type PostCardProps = {
   post: Posting;
@@ -14,8 +13,9 @@ type PostCardProps = {
 };
 
 export function PostCard({ post, onPress }: PostCardProps) {
-  const theme = useColorScheme() ?? 'light';
-  const palette = Colors[theme];
+  const palette = Colors.light;
+  const distanceLabel = post.distanceLabel ?? (post.distanceKm !== null ? `${post.distanceKm.toFixed(1)} km away` : 'Distance pending');
+  const pickupLabel = post.pickupWindowLabel ?? 'Pickup window pending';
 
   return (
     <SurfaceCard style={styles.card} onPress={onPress} tone="default">
@@ -27,19 +27,17 @@ export function PostCard({ post, onPress }: PostCardProps) {
           <ThemedText type="subtitle" style={styles.title}>
             {post.title}
           </ThemedText>
-          <ThemedText style={[styles.quantity, { color: palette.subtleText }]}>
-            {post.quantityLabel}
-          </ThemedText>
+          <ThemedText style={[styles.quantity, { color: palette.subtleText }]}>{post.quantityLabel}</ThemedText>
         </View>
-        <Pill tone="info" compact iconName="clock.fill">
+        <Pill tone={post.status === 'reserved' ? 'warning' : 'brand'} compact iconName={post.status === 'reserved' ? 'clock.fill' : 'checkmark.seal.fill'}>
           {post.status === 'reserved' ? 'Reserved' : 'Open now'}
         </Pill>
       </View>
 
       <View style={styles.detailRow}>
-        <IconSymbol name="map.fill" size={18} color={palette.subtleText} />
+        <IconSymbol name="map.fill" size={18} color={palette.icon} />
         <ThemedText style={[styles.detailText, { color: palette.subtleText }]}>
-          {post.distanceKm.toFixed(1)} km away · {post.pickupWindow}
+          {distanceLabel} · {pickupLabel}
         </ThemedText>
       </View>
 
@@ -65,7 +63,9 @@ export function PostCard({ post, onPress }: PostCardProps) {
       <SurfaceCard tone="highlight" style={styles.socialCard}>
         <View style={styles.detailRow}>
           <IconSymbol name="person.3.fill" size={18} color={palette.success} />
-          <ThemedText style={styles.detailText}>{post.socialProof}</ThemedText>
+          <ThemedText style={styles.detailText}>
+            {post.socialProof ?? 'Neighbors love quick pickups and public meetups.'}
+          </ThemedText>
         </View>
         {post.reserverCount > 0 ? (
           <ThemedText style={[styles.detailText, { color: palette.subtleText }]}>

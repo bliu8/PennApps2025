@@ -1,4 +1,7 @@
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE, Region } from 'react-native-maps';
+import * as Location from 'expo-location';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -7,30 +10,78 @@ import { PostCard } from '@/components/ui/post-card';
 import { SurfaceCard } from '@/components/ui/surface-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
-import { demoPostings } from '@/constants/mock-data';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { usePostings } from '@/hooks/use-postings';
+import { Posting } from '@/types/posting';
 
-const mapPins = [
-  { top: '18%', left: '72%' },
-  { top: '52%', left: '36%' },
-  { top: '70%', left: '18%' },
-];
+const DEFAULT_REGION: Region = {
+  latitude: 39.9526,
+  longitude: -75.1652,
+  latitudeDelta: 0.05,
+  longitudeDelta: 0.05,
+};
 
-const discoveryFilters = [
-  { label: '≤ 2 km', tone: 'brand' as const, icon: 'map.fill' },
-  { label: 'Quick pickup', tone: 'info' as const, icon: 'clock.fill' },
-  { label: 'Allergen friendly', tone: 'brand' as const, icon: 'sparkles' },
-];
+function createRegionFromPosting(posting: Posting): Region {
+  if (!posting.coordinates) {
+    return DEFAULT_REGION;
+  }
+
+  return {
+    latitude: posting.coordinates.latitude,
+    longitude: posting.coordinates.longitude,
+    latitudeDelta: 0.04,
+    longitudeDelta: 0.04,
+  };
+}
 
 export default function ExploreScreen() {
-  const theme = useColorScheme() ?? 'light';
-  const palette = Colors[theme];
+  const palette = Colors.light;
+  const { postings, loading, error, refresh } = usePostings();
+  const [userRegion, setUserRegion] = useState<Region | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== Location.PermissionStatus.GRANTED) {
+        setLocationDenied(true);
+        return;
+      }
+      const current = await Location.getCurrentPositionAsync({});
+      setUserRegion({
+        latitude: current.coords.latitude,
+        longitude: current.coords.longitude,
+        latitudeDelta: 0.03,
+        longitudeDelta: 0.03,
+      });
+    })();
+  }, []);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  }, [refresh]);
+
+  const mapRegion = useMemo(() => {
+    if (userRegion) {
+      return userRegion;
+    }
+    const firstWithCoordinates = postings.find((posting) => posting.coordinates);
+    if (firstWithCoordinates) {
+      return createRegionFromPosting(firstWithCoordinates);
+    }
+    return DEFAULT_REGION;
+  }, [userRegion, postings]);
+
+  const mapKey = `${mapRegion.latitude.toFixed(3)}-${mapRegion.longitude.toFixed(3)}`;
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}> 
       <ScrollView
         style={styles.container}
         contentContainerStyle={[styles.content, { backgroundColor: palette.background }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={palette.tint} />}
         showsVerticalScrollIndicator={false}>
         <View style={styles.heroHeader}>
           <ThemedText type="title">Discover nearby</ThemedText>
@@ -40,27 +91,59 @@ export default function ExploreScreen() {
         </View>
 
         <SurfaceCard tone="info" style={styles.mapCard}>
-          <View style={[styles.mapPreview, { backgroundColor: palette.backgroundMuted }]}> 
-            <View style={styles.mapGrid}>
-              {[...Array(3)].map((_, index) => (
-                <View key={`grid-h-${index}`} style={[styles.gridLine, { top: `${(index + 1) * 25}%` }]} />
-              ))}
-              {[...Array(3)].map((_, index) => (
-                <View key={`grid-v-${index}`} style={[styles.gridLineVertical, { left: `${(index + 1) * 25}%` }]} />
-              ))}
-              {mapPins.map((pin, index) => (
-                <View
-                  key={`pin-${index}`}
-                  style={[styles.pin, { top: pin.top, left: pin.left, backgroundColor: palette.tint }]}>
-                  <IconSymbol name="sparkles" size={16} color="#ffffff" />
-                </View>
-              ))}
-            </View>
+          <View style={styles.mapHeader}>
+            <ThemedText type="subtitle">Live neighborhood map</ThemedText>
+            <Pill tone="info" iconName="map.fill" compact>
+              Showing approximate pins until a claim is accepted
+            </Pill>
           </View>
-          <Pill tone="info" iconName="map.fill" compact>
-            Showing approximate pins until a claim is accepted
-          </Pill>
+          <View style={styles.mapPreview}>
+            <MapView
+              key={mapKey}
+              style={StyleSheet.absoluteFill}
+              initialRegion={mapRegion}
+              showsUserLocation={!locationDenied}
+              provider={PROVIDER_GOOGLE}
+              customMapStyle={LIGHT_MAP_STYLE}
+              showsPointsOfInterest={false}
+            >
+              {postings
+                .filter((posting) => posting.coordinates)
+                .map((posting) => (
+                  <Marker
+                    key={posting.id}
+                    coordinate={{
+                      latitude: posting.coordinates!.latitude,
+                      longitude: posting.coordinates!.longitude,
+                    }}
+                    title={posting.title}
+                    description={posting.pickupLocationHint}
+                  />
+                ))}
+            </MapView>
+          </View>
+          {locationDenied ? (
+            <Pill tone="warning" iconName="location.slash" compact>
+              Enable location to center the map around you
+            </Pill>
+          ) : null}
         </SurfaceCard>
+
+        {error ? (
+          <SurfaceCard tone="warning" style={styles.errorCard}>
+            <ThemedText type="subtitle">We can&apos;t load the map data</ThemedText>
+            <ThemedText style={{ color: palette.subtleText }}>
+              {error}. Pull to refresh or check the API base URL in your Expo env variables.
+            </ThemedText>
+          </SurfaceCard>
+        ) : null}
+
+        {loading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="small" color={palette.tint} />
+            <ThemedText style={{ color: palette.subtleText }}>Fetching updated map pins…</ThemedText>
+          </View>
+        ) : null}
 
         <SurfaceCard tone="highlight" style={styles.planningCard}>
           <View style={styles.sectionHeader}>
@@ -94,11 +177,17 @@ export default function ExploreScreen() {
             </Pill>
           </View>
           <View style={styles.filterRow}>
-            {discoveryFilters.map((filter) => (
-              <Pill key={filter.label} tone={filter.tone} iconName={filter.icon} compact>
-                {filter.label}
+            {postings.length > 0 ? (
+              postings.slice(0, 3).map((post) => (
+                <Pill key={post.id} tone="brand" compact iconName="map.fill">
+                  {post.distanceLabel ?? 'Nearby'}
+                </Pill>
+              ))
+            ) : (
+              <Pill tone="brand" compact>
+                Waiting for nearby postings
               </Pill>
-            ))}
+            )}
           </View>
           <ThemedText style={[styles.filterHelper, { color: palette.subtleText }]}>
             Adjust filters anytime to include allergen details or extend the search radius.
@@ -108,11 +197,11 @@ export default function ExploreScreen() {
         <View style={styles.sectionHeader}>
           <ThemedText type="subtitle">Trending handoffs</ThemedText>
           <Pill tone="info" compact iconName="person.3.fill">
-            {demoPostings.length} neighbors ready
+            {postings.length} neighbors ready
           </Pill>
         </View>
         <View style={styles.postsList}>
-          {demoPostings.map((post) => (
+          {postings.map((post) => (
             <PostCard key={`explore-${post.id}`} post={post} />
           ))}
         </View>
@@ -125,14 +214,42 @@ export default function ExploreScreen() {
             </Pill>
           </View>
           <ThemedText style={[styles.footerCopy, { color: palette.subtleText }]}>
-            Meet at well-lit, public spots and keep communication inside the app. If something feels off, use the report option so
-            moderators can step in.
+            Meet at well-lit, public spots and keep communication inside the app. If something feels off, use the report option
+            so moderators can step in.
           </ThemedText>
         </SurfaceCard>
       </ScrollView>
     </SafeAreaView>
   );
 }
+
+const LIGHT_MAP_STYLE = [
+  {
+    elementType: 'geometry',
+    stylers: [{ color: '#f1f4f2' }],
+  },
+  {
+    elementType: 'labels.text.fill',
+    stylers: [{ color: '#5f6c66' }],
+  },
+  {
+    elementType: 'labels.text.stroke',
+    stylers: [{ color: '#ffffff' }],
+  },
+  {
+    featureType: 'poi',
+    stylers: [{ visibility: 'off' }],
+  },
+  {
+    featureType: 'road',
+    elementType: 'geometry',
+    stylers: [{ color: '#ffffff' }],
+  },
+  {
+    featureType: 'transit',
+    stylers: [{ visibility: 'off' }],
+  },
+];
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -156,37 +273,18 @@ const styles = StyleSheet.create({
   mapCard: {
     gap: 16,
   },
+  mapHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 12,
+  },
   mapPreview: {
     borderRadius: 24,
-    height: 220,
+    height: 260,
     overflow: 'hidden',
     borderWidth: StyleSheet.hairlineWidth,
-    borderColor: 'rgba(0,0,0,0.05)',
-  },
-  mapGrid: {
-    flex: 1,
-  },
-  gridLine: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 1,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-  },
-  gridLineVertical: {
-    position: 'absolute',
-    top: 0,
-    bottom: 0,
-    width: 1,
-    backgroundColor: 'rgba(0,0,0,0.08)',
-  },
-  pin: {
-    position: 'absolute',
-    width: 32,
-    height: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
+    borderColor: 'rgba(0,0,0,0.06)',
   },
   planningCard: {
     gap: 12,
@@ -199,8 +297,8 @@ const styles = StyleSheet.create({
   },
   bulletRow: {
     flexDirection: 'row',
-    gap: 12,
     alignItems: 'center',
+    gap: 12,
   },
   bulletCopy: {
     flex: 1,
@@ -208,12 +306,12 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   filterCard: {
-    gap: 16,
+    gap: 12,
   },
   filterRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 10,
+    gap: 8,
   },
   filterHelper: {
     fontSize: 14,
@@ -226,7 +324,15 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   footerCopy: {
-    fontSize: 14,
-    lineHeight: 20,
+    fontSize: 15,
+    lineHeight: 22,
+  },
+  loadingState: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 12,
+  },
+  errorCard: {
+    gap: 12,
   },
 });

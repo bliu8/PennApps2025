@@ -1,5 +1,5 @@
-import { useMemo } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useMemo, useState } from 'react';
+import { ActivityIndicator, RefreshControl, ScrollView, StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
@@ -11,11 +11,10 @@ import { MetricTile } from '@/components/ui/metric-tile';
 import { Colors } from '@/constants/theme';
 import {
   allergenFriendlyFilters,
-  demoPostings,
   impactMetrics,
   pickupPrompts,
 } from '@/constants/mock-data';
-import { useColorScheme } from '@/hooks/use-color-scheme';
+import { usePostings } from '@/hooks/use-postings';
 
 function useGreeting() {
   return useMemo(() => {
@@ -27,15 +26,23 @@ function useGreeting() {
 }
 
 export default function HomeScreen() {
-  const theme = useColorScheme() ?? 'light';
-  const palette = Colors[theme];
+  const palette = Colors.light;
   const greeting = useGreeting();
+  const { postings, loading, error, refresh } = usePostings();
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await refresh();
+    setRefreshing(false);
+  }, [refresh]);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}> 
       <ScrollView
         style={styles.container}
         contentContainerStyle={[styles.content, { backgroundColor: palette.background }]}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={palette.tint} />}
         showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
@@ -126,14 +133,30 @@ export default function HomeScreen() {
           </View>
         </SurfaceCard>
 
+        {error ? (
+          <SurfaceCard tone="warning" style={styles.errorCard}>
+            <ThemedText type="subtitle">We couldn&apos;t refresh postings</ThemedText>
+            <ThemedText style={{ color: palette.subtleText }}>
+              {error}. Pull to refresh to try again once you&apos;re back online.
+            </ThemedText>
+          </SurfaceCard>
+        ) : null}
+
+        {loading ? (
+          <View style={styles.loadingState}>
+            <ActivityIndicator size="small" color={palette.tint} />
+            <ThemedText style={{ color: palette.subtleText }}>Loading nearby postings…</ThemedText>
+          </View>
+        ) : null}
+
         <View style={styles.sectionHeader}>
           <ThemedText type="subtitle">Open postings in your orbit</ThemedText>
           <Pill tone="info" compact iconName="bell.fill">
-            Nudging {demoPostings.length} givers
+            Nudging {postings.length} givers
           </Pill>
         </View>
         <View style={styles.postsList}>
-          {demoPostings.map((post) => (
+          {postings.map((post) => (
             <PostCard key={post.id} post={post} />
           ))}
         </View>
@@ -252,7 +275,15 @@ const styles = StyleSheet.create({
   postsList: {
     gap: 16,
   },
+  loadingState: {
+    paddingVertical: 24,
+    alignItems: 'center',
+    gap: 12,
+  },
   safetyCard: {
+    gap: 12,
+  },
+  errorCard: {
     gap: 12,
   },
   safetyText: {

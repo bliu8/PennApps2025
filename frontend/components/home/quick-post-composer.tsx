@@ -14,7 +14,7 @@ import { Colors } from '@/constants/theme';
 import { createPosting, requestListingAssist, ListingAssistPayload } from '@/services/api';
 import { Posting } from '@/types/posting';
 import { useColorScheme } from '@/hooks/use-color-scheme';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthContext } from '@/context/AuthContext';
 
 type QuickPostComposerProps = {
   onPostCreated?: (posting: Posting) => void;
@@ -35,7 +35,7 @@ export function QuickPostComposer({ onPostCreated }: QuickPostComposerProps) {
   const [aiLoading, setAiLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuthContext();
 
   const parsedAllergens = useMemo(
     () =>

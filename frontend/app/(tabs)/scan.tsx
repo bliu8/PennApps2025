@@ -11,7 +11,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { fetchScans, uploadScan, requestListingAssist, ListingAssistPayload, ListingAssistantResponse } from '@/services/api';
 import { ScanRecord } from '@/types/scans';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthContext } from '@/context/AuthContext';
 
 const palette = Colors.light;
 
@@ -25,7 +25,7 @@ export default function ScanScreen() {
   const [aiAssist, setAiAssist] = useState<ListingAssistantResponse | null>(null);
   const [aiAssistLoading, setAiAssistLoading] = useState(false);
   const [aiAssistError, setAiAssistError] = useState<string | null>(null);
-  const { accessToken } = useAuth();
+  const { accessToken } = useAuthContext();
 
   useEffect(() => {
     if (!accessToken) {

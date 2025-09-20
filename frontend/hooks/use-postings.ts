@@ -2,13 +2,13 @@ import { useCallback, useEffect, useState } from 'react';
 
 import { fetchPostings } from '@/services/api';
 import { Posting } from '@/types/posting';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthContext } from '@/context/AuthContext';
 
 export function usePostings() {
   const [postings, setPostings] = useState<Posting[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { accessToken, status } = useAuth();
+  const { accessToken, status } = useAuthContext();
 
   const load = useCallback(async () => {
     if (!accessToken) {

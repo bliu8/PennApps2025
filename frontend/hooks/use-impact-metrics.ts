@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchImpactMetrics } from '@/services/api';
 import { ImpactMetric, ImpactResponse } from '@/types/impact';
 import { fallbackImpactMetrics } from '@/constants/mock-data';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthContext } from '@/context/AuthContext';
 
 type ImpactState = {
   metrics: ImpactMetric[];
@@ -21,7 +21,7 @@ const initialState: ImpactState = {
 
 export function useImpactMetrics() {
   const [state, setState] = useState<ImpactState>(initialState);
-  const { accessToken, status } = useAuth();
+  const { accessToken, status } = useAuthContext();
 
   const load = useCallback(async () => {
     if (!accessToken) {

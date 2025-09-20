@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { fetchNudges } from '@/services/api';
 import { AiNudge, NudgesResponse } from '@/types/nudge';
 import { fallbackPickupPrompts, fallbackHeroMessages } from '@/constants/mock-data';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthContext } from '@/context/AuthContext';
 
 type NudgeState = {
   nudges: AiNudge[];
@@ -23,7 +23,7 @@ const initialState: NudgeState = {
 
 export function useNudges(params?: { persona?: string; focus?: string; count?: number }) {
   const [state, setState] = useState<NudgeState>(initialState);
-  const { accessToken, status } = useAuth();
+  const { accessToken, status } = useAuthContext();
 
   const load = useCallback(async () => {
     if (!accessToken) {

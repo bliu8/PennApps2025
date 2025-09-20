@@ -1,7 +1,11 @@
-import { ReactNode, createContext, useCallback, useContext, useMemo, useRef, useState } from 'react';
+import { ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as WebBrowser from 'expo-web-browser';
+import * as SecureStore from 'expo-secure-store';
+
+// ensure WebBrowser can complete pending auth sessions on native
+WebBrowser.maybeCompleteAuthSession();
 
 import { AuthStatus, AuthUser } from '@/types/auth';
 import { AUTH0_AUDIENCE, AUTH0_CLIENT_ID, AUTH0_DOMAIN } from '@/utils/env';
@@ -11,11 +15,18 @@ type AuthContextValue = {
   accessToken: string | null;
   user: AuthUser | null;
   error: string | null;
-  login: () => Promise<void>;
+  loginWithApple: () => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
+
+const STORAGE_KEYS = {
+  ACCESS_TOKEN: 'auth_access_token',
+  USER: 'auth_user',
+  EXPIRES_AT: 'auth_expires_at',
+};
 
 function randomString(length = 32) {
   const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
@@ -24,6 +35,51 @@ function randomString(length = 32) {
     result += charset.charAt(Math.floor(Math.random() * charset.length));
   }
   return result;
+}
+
+async function storeSession(accessToken: string, user: AuthUser, expiresAt: number) {
+  try {
+    await SecureStore.setItemAsync(STORAGE_KEYS.ACCESS_TOKEN, accessToken);
+    await SecureStore.setItemAsync(STORAGE_KEYS.USER, JSON.stringify(user));
+    await SecureStore.setItemAsync(STORAGE_KEYS.EXPIRES_AT, expiresAt.toString());
+  } catch (error) {
+    console.warn('Failed to store session:', error);
+  }
+}
+
+async function getStoredSession(): Promise<{ accessToken: string; user: AuthUser; expiresAt: number } | null> {
+  try {
+    const accessToken = await SecureStore.getItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
+    const userString = await SecureStore.getItemAsync(STORAGE_KEYS.USER);
+    const expiresAtString = await SecureStore.getItemAsync(STORAGE_KEYS.EXPIRES_AT);
+
+    if (!accessToken || !userString || !expiresAtString) {
+      return null;
+    }
+
+    const user = JSON.parse(userString) as AuthUser;
+    const expiresAt = parseInt(expiresAtString, 10);
+
+    if (Date.now() >= expiresAt) {
+      await clearStoredSession();
+      return null;
+    }
+
+    return { accessToken, user, expiresAt };
+  } catch (error) {
+    console.warn('Failed to get stored session:', error);
+    return null;
+  }
+}
+
+async function clearStoredSession() {
+  try {
+    await SecureStore.deleteItemAsync(STORAGE_KEYS.ACCESS_TOKEN);
+    await SecureStore.deleteItemAsync(STORAGE_KEYS.USER);
+    await SecureStore.deleteItemAsync(STORAGE_KEYS.EXPIRES_AT);
+  } catch (error) {
+    console.warn('Failed to clear stored session:', error);
+  }
 }
 
 async function fetchUserProfile(accessToken: string): Promise<AuthUser> {
@@ -51,7 +107,7 @@ async function fetchUserProfile(accessToken: string): Promise<AuthUser> {
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [status, setStatus] = useState<AuthStatus>('unauthenticated');
+  const [status, setStatus] = useState<AuthStatus>('loading'); // Start with loading to check stored session
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +126,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setAccessToken(null);
     setUser(null);
     setStatus('unauthenticated');
+    void clearStoredSession(); // clear from secure storage
   }, [resetTimer]);
 
   const scheduleExpiry = useCallback(
@@ -88,10 +145,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     [clearSession, resetTimer],
   );
 
-  const login = useCallback(async () => {
+  // CHECK IF WE HAVE A STORED SESSION
+  useEffect(() => {
+    async function restoreSession() {
+      const storedSession = await getStoredSession();
+      if (storedSession) {
+        setAccessToken(storedSession.accessToken);
+        setUser(storedSession.user);
+        setStatus('authenticated');
+        scheduleExpiry(storedSession.expiresAt);
+      } else {
+        setStatus('unauthenticated');
+      }
+    }
+    void restoreSession();
+  }, [scheduleExpiry]);
+
+  const performLogin = useCallback(async (connection?: string) => {
     setError(null);
 
-    if (!AUTH0_DOMAIN || !AUTH0_CLIENT_ID || !AUTH0_AUDIENCE) {
+    if (!AUTH0_DOMAIN || !AUTH0_CLIENT_ID) {
       setStatus('error');
       setError('Auth0 environment variables are missing.');
       return;
@@ -100,15 +173,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const redirectUri = Linking.createURL('/auth/callback');
     console.log('🔗 DEBUG: Redirect URI =', redirectUri);
     const state = randomString(32);
+    const nonce = randomString(32);
     expectedStateRef.current = state;
 
     const authorizeUrl = new URL(`https://${AUTH0_DOMAIN}/authorize`);
+    // Request only an access token via implicit flow
     authorizeUrl.searchParams.set('response_type', 'token');
     authorizeUrl.searchParams.set('client_id', AUTH0_CLIENT_ID);
     authorizeUrl.searchParams.set('redirect_uri', redirectUri);
     authorizeUrl.searchParams.set('scope', 'openid profile email');
-    authorizeUrl.searchParams.set('audience', AUTH0_AUDIENCE);
     authorizeUrl.searchParams.set('state', state);
+    authorizeUrl.searchParams.set('nonce', nonce);
+    // Do NOT set audience here to maximize compatibility across providers
+    if (connection) {
+      authorizeUrl.searchParams.set('connection', connection);
+    }
 
     setStatus('loading');
     const result = await WebBrowser.openAuthSessionAsync(authorizeUrl.toString(), redirectUri);
@@ -119,18 +198,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setError('Login was cancelled.');
       } else if (result.type === 'dismiss') {
         setError('Login flow was dismissed before completion.');
+      } else {
+        setError('Login did not complete successfully.');
       }
       return;
     }
 
-    const fragment = result.url.split('#')[1];
-    if (!fragment) {
+    // Handle error responses returned by Auth0 (either in query or fragment)
+    const combined = result.url.includes('#') ? result.url.split('#')[1] : result.url.split('?')[1] ?? '';
+    const params = new URLSearchParams(combined);
+
+    const errorParam = params.get('error');
+    const errorDescription = params.get('error_description');
+    if (errorParam) {
       setStatus('unauthenticated');
-      setError('Auth0 did not return an access token.');
+      setError(errorDescription || errorParam || 'Authentication failed.');
       return;
     }
 
-    const params = new URLSearchParams(fragment);
     const returnedState = params.get('state');
     if (!returnedState || returnedState !== expectedStateRef.current) {
       setStatus('unauthenticated');
@@ -151,10 +236,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       const profile = await fetchUserProfile(token);
+      const expiresAt = Date.now() + Number(expiresIn) * 1000;
+      
+      // Store session persistently
+      await storeSession(token, profile, expiresAt);
+      
       setAccessToken(token);
       setUser(profile);
       setStatus('authenticated');
-      const expiresAt = Date.now() + Number(expiresIn) * 1000;
       scheduleExpiry(expiresAt);
     } catch (profileError) {
       clearSession();
@@ -166,27 +255,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [scheduleExpiry, clearSession]);
 
+  const loginWithApple = useCallback(async () => {
+    await performLogin();
+  }, [performLogin]);
+
+  const loginWithGoogle = useCallback(async () => {
+    await performLogin();
+  }, [performLogin]);
+
   const logout = useCallback(async () => {
     clearSession();
     if (!AUTH0_DOMAIN || !AUTH0_CLIENT_ID) {
       return;
     }
-    const returnTo = Linking.createURL('/');
-    const logoutUrl = new URL(`https://${AUTH0_DOMAIN}/v2/logout`);
-    logoutUrl.searchParams.set('client_id', AUTH0_CLIENT_ID);
-    logoutUrl.searchParams.set('returnTo', returnTo);
 
+    // Web: redirect to Auth0 logout to clear hosted session
     if (Platform.OS === 'web') {
+      const returnTo = Linking.createURL('/');
+      const logoutUrl = new URL(`https://${AUTH0_DOMAIN}/v2/logout`);
+      logoutUrl.searchParams.set('client_id', AUTH0_CLIENT_ID);
+      logoutUrl.searchParams.set('returnTo', returnTo);
       if (typeof window !== 'undefined') {
         window.location.href = logoutUrl.toString();
       }
       return;
     }
 
-    // Native platforms require opening the browser to clear the Auth0 session.
-    if (Platform.OS === 'ios' || Platform.OS === 'android') {
-      await WebBrowser.openBrowserAsync(logoutUrl.toString());
-    }
+    // SILENT LOGOUT
+    return;
   }, [clearSession]);
 
   const value = useMemo(
@@ -195,10 +291,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       accessToken,
       user,
       error,
-      login,
+      loginWithApple,
+      loginWithGoogle,
       logout,
     }),
-    [status, accessToken, user, error, login, logout],
+    [status, accessToken, user, error, loginWithApple, loginWithGoogle, logout],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

@@ -2,9 +2,11 @@ from typing import List, Optional, Literal
 from uuid import uuid4
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import Depends, FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from .auth import Auth0User, get_current_user
 
 
 API_PREFIX = "/api"
@@ -141,12 +143,16 @@ def now_iso() -> str:
 
 
 @app.get(f"{API_PREFIX}/postings", response_model=PostingsResponse)
-def get_postings() -> PostingsResponse:
+def get_postings(current_user: Auth0User = Depends(get_current_user)) -> PostingsResponse:
+    del current_user
     return PostingsResponse(postings=POSTINGS)
 
 
 @app.post(f"{API_PREFIX}/postings", response_model=dict)
-def create_posting(payload: CreatePostingPayload):
+def create_posting(
+    payload: CreatePostingPayload, current_user: Auth0User = Depends(get_current_user)
+):
+    del current_user
     posting = Posting(
         id=str(uuid4()),
         title=payload.title,
@@ -168,7 +174,8 @@ def create_posting(payload: CreatePostingPayload):
 
 
 @app.get(f"{API_PREFIX}/impact", response_model=ImpactResponse)
-def get_impact() -> ImpactResponse:
+def get_impact(current_user: Auth0User = Depends(get_current_user)) -> ImpactResponse:
+    del current_user
     metrics = [
         ImpactMetric(id="neighbors-helped", label="Neighbors helped", value="12", helperText="Up 3 this month — keep the momentum! ❤️", icon="heart.fill"),
         ImpactMetric(id="waste-avoided", label="Waste avoided", value="18 lbs", helperText="Equals ~36 meals redirected.", icon="leaf.fill"),
@@ -178,8 +185,14 @@ def get_impact() -> ImpactResponse:
 
 
 @app.get(f"{API_PREFIX}/nudges", response_model=NudgesResponse)
-def get_nudges(count: Optional[int] = None, persona: Optional[str] = None, focus: Optional[str] = None) -> NudgesResponse:
+def get_nudges(
+    count: Optional[int] = None,
+    persona: Optional[str] = None,
+    focus: Optional[str] = None,
+    current_user: Auth0User = Depends(get_current_user),
+) -> NudgesResponse:
     del count, persona, focus
+    del current_user
     nudges = [
         AiNudge(id="default-window", headline="Default to a 30-minute pickup window", supportingCopy="It keeps momentum high and matches what most neighbors expect.", defaultLabel="Suggested: 30 min window"),
         AiNudge(id="location-hint", headline="Pick a public handoff spot upfront", supportingCopy="Library entrances, grocery foyers, and lobbies feel safest for everyone.", defaultLabel="Popular: Public lobby shelves"),
@@ -188,12 +201,16 @@ def get_nudges(count: Optional[int] = None, persona: Optional[str] = None, focus
 
 
 @app.get(f"{API_PREFIX}/scans", response_model=ScansResponse)
-def get_scans() -> ScansResponse:
+def get_scans(current_user: Auth0User = Depends(get_current_user)) -> ScansResponse:
+    del current_user
     return ScansResponse(scans=SCANS)
 
 
 @app.post(f"{API_PREFIX}/scans", response_model=dict)
-async def upload_scan(image: UploadFile = File(...)):
+async def upload_scan(
+    image: UploadFile = File(...), current_user: Auth0User = Depends(get_current_user)
+):
+    del current_user
     allowed = {"image/jpeg", "image/png", "image/webp"}
     if image.content_type not in allowed:
         from fastapi import HTTPException
@@ -215,7 +232,10 @@ async def upload_scan(image: UploadFile = File(...)):
 
 
 @app.post(f"{API_PREFIX}/ai/listing-assistant", response_model=ListingAssistantResponse)
-def listing_assistant(payload: ListingAssistPayload) -> ListingAssistantResponse:
+def listing_assistant(
+    payload: ListingAssistPayload, current_user: Auth0User = Depends(get_current_user)
+) -> ListingAssistantResponse:
+    del current_user
     title = payload.title or "Leftover item"
     quantity = payload.quantityLabel or "1 item"
     suggestion = ListingAssistantSuggestion(

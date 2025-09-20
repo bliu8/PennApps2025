@@ -60,8 +60,20 @@ function mapPosting(posting: ApiPosting): Posting {
   };
 }
 
-export async function fetchPostings(): Promise<Posting[]> {
-  const response = await fetch(`${API_BASE_URL}/postings`);
+function buildHeaders(accessToken: string, init?: HeadersInit): Headers {
+  if (!accessToken) {
+    throw new Error('Authentication required. Sign in to continue.');
+  }
+
+  const headers = new Headers(init ?? {});
+  headers.set('Authorization', `Bearer ${accessToken}`);
+  return headers;
+}
+
+export async function fetchPostings(accessToken: string): Promise<Posting[]> {
+  const response = await fetch(`${API_BASE_URL}/postings`, {
+    headers: buildHeaders(accessToken),
+  });
   if (!response.ok) {
     throw new Error(`Unable to load postings (${response.status})`);
   }
@@ -69,10 +81,10 @@ export async function fetchPostings(): Promise<Posting[]> {
   return data.postings.map((posting) => mapPosting(posting));
 }
 
-export async function createPosting(payload: CreatePostingPayload): Promise<Posting> {
+export async function createPosting(payload: CreatePostingPayload, accessToken: string): Promise<Posting> {
   const response = await fetch(`${API_BASE_URL}/postings`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildHeaders(accessToken, { 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload),
   });
 
@@ -85,8 +97,10 @@ export async function createPosting(payload: CreatePostingPayload): Promise<Post
   return mapPosting(data.posting);
 }
 
-export async function fetchImpactMetrics(): Promise<ImpactResponse> {
-  const response = await fetch(`${API_BASE_URL}/impact`);
+export async function fetchImpactMetrics(accessToken: string): Promise<ImpactResponse> {
+  const response = await fetch(`${API_BASE_URL}/impact`, {
+    headers: buildHeaders(accessToken),
+  });
   if (!response.ok) {
     throw new Error(`Unable to load impact metrics (${response.status})`);
   }
@@ -94,7 +108,10 @@ export async function fetchImpactMetrics(): Promise<ImpactResponse> {
   return (await response.json()) as ImpactResponse;
 }
 
-export async function fetchNudges(params?: { count?: number; persona?: string; focus?: string }): Promise<NudgesResponse> {
+export async function fetchNudges(
+  accessToken: string,
+  params?: { count?: number; persona?: string; focus?: string },
+): Promise<NudgesResponse> {
   const url = new URL(`${API_BASE_URL}/nudges`);
   if (params?.count) {
     url.searchParams.set('count', String(params.count));
@@ -106,7 +123,9 @@ export async function fetchNudges(params?: { count?: number; persona?: string; f
     url.searchParams.set('focus', params.focus);
   }
 
-  const response = await fetch(url.toString());
+  const response = await fetch(url.toString(), {
+    headers: buildHeaders(accessToken),
+  });
   if (!response.ok) {
     throw new Error(`Unable to load nudges (${response.status})`);
   }
@@ -114,10 +133,13 @@ export async function fetchNudges(params?: { count?: number; persona?: string; f
   return (await response.json()) as NudgesResponse;
 }
 
-export async function requestListingAssist(payload: ListingAssistPayload): Promise<ListingAssistantResponse> {
+export async function requestListingAssist(
+  payload: ListingAssistPayload,
+  accessToken: string,
+): Promise<ListingAssistantResponse> {
   const response = await fetch(`${API_BASE_URL}/ai/listing-assistant`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: buildHeaders(accessToken, { 'Content-Type': 'application/json' }),
     body: JSON.stringify(payload),
   });
 
@@ -128,8 +150,10 @@ export async function requestListingAssist(payload: ListingAssistPayload): Promi
   return (await response.json()) as ListingAssistantResponse;
 }
 
-export async function fetchScans(): Promise<ScanRecord[]> {
-  const response = await fetch(`${API_BASE_URL}/scans`);
+export async function fetchScans(accessToken: string): Promise<ScanRecord[]> {
+  const response = await fetch(`${API_BASE_URL}/scans`, {
+    headers: buildHeaders(accessToken),
+  });
   if (!response.ok) {
     throw new Error(`Unable to load scan history (${response.status})`);
   }
@@ -140,7 +164,12 @@ export async function fetchScans(): Promise<ScanRecord[]> {
   }));
 }
 
-export async function uploadScan(uri: string, fileName: string, mimeType?: string): Promise<ScanRecord> {
+export async function uploadScan(
+  uri: string,
+  fileName: string,
+  mimeType: string | undefined,
+  accessToken: string,
+): Promise<ScanRecord> {
   const formData = new FormData();
   formData.append('image', {
     uri,
@@ -151,7 +180,10 @@ export async function uploadScan(uri: string, fileName: string, mimeType?: strin
   const response = await fetch(`${API_BASE_URL}/scans`, {
     method: 'POST',
     body: formData,
-    headers: Platform.OS === 'web' ? { 'Content-Type': 'multipart/form-data' } : undefined,
+    headers:
+      Platform.OS === 'web'
+        ? buildHeaders(accessToken, { 'Content-Type': 'multipart/form-data' })
+        : buildHeaders(accessToken),
   });
 
   if (!response.ok) {

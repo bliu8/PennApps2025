@@ -42,7 +42,7 @@ npm install
 expo start --ios
 ```
 
-Configure the Expo client with `EXPO_PUBLIC_API_BASE_URL` so the app can talk to your API instance.
+Configure the Expo client with `EXPO_PUBLIC_API_BASE_URL` so the app can talk to your API instance. When enabling Auth0 login, also supply `EXPO_PUBLIC_AUTH0_DOMAIN`, `EXPO_PUBLIC_AUTH0_CLIENT_ID`, and `EXPO_PUBLIC_AUTH0_AUDIENCE`, and mirror the domain/audience values on the FastAPI service (`AUTH0_DOMAIN`, `AUTH0_AUDIENCE`).
 
 ## Feature highlights
 

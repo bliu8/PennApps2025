@@ -11,6 +11,7 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { fetchScans, uploadScan, requestListingAssist, ListingAssistPayload, ListingAssistantResponse } from '@/services/api';
 import { ScanRecord } from '@/types/scans';
+import { useAuth } from '@/hooks/use-auth';
 
 const palette = Colors.light;
 
@@ -24,11 +25,18 @@ export default function ScanScreen() {
   const [aiAssist, setAiAssist] = useState<ListingAssistantResponse | null>(null);
   const [aiAssistLoading, setAiAssistLoading] = useState(false);
   const [aiAssistError, setAiAssistError] = useState<string | null>(null);
+  const { accessToken } = useAuth();
 
   useEffect(() => {
+    if (!accessToken) {
+      setLoadingHistory(false);
+      return;
+    }
+
+    setLoadingHistory(true);
     void (async () => {
       try {
-        const records = await fetchScans();
+        const records = await fetchScans(accessToken);
         setHistory(records);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Unable to load scan history');
@@ -36,7 +44,7 @@ export default function ScanScreen() {
         setLoadingHistory(false);
       }
     })();
-  }, []);
+  }, [accessToken]);
 
   const allergenDisplay = useMemo(() => scanResult?.allergens ?? [], [scanResult]);
 
@@ -44,6 +52,12 @@ export default function ScanScreen() {
     if (!scanResult) {
       setAiAssist(null);
       setAiAssistError(null);
+      return;
+    }
+
+    if (!accessToken) {
+      setAiAssist(null);
+      setAiAssistError('Session expired. Sign in again to request AI assists.');
       return;
     }
 
@@ -57,7 +71,7 @@ export default function ScanScreen() {
 
     setAiAssistLoading(true);
     setAiAssistError(null);
-    void requestListingAssist(payload)
+    void requestListingAssist(payload, accessToken)
       .then((response) => {
         setAiAssist(response);
       })
@@ -68,7 +82,7 @@ export default function ScanScreen() {
       .finally(() => {
         setAiAssistLoading(false);
       });
-  }, [scanResult]);
+  }, [scanResult, accessToken]);
 
   const pickImage = useCallback(async (source: 'camera' | 'library') => {
     setError(null);
@@ -113,12 +127,17 @@ export default function ScanScreen() {
       return;
     }
 
+    if (!accessToken) {
+      setError('Session expired. Please sign in again.');
+      return;
+    }
+
     setSubmitting(true);
     setError(null);
     try {
       const fileName = selectedImage.fileName ?? `scan-${Date.now()}.jpg`;
       const mimeType = selectedImage.mimeType ?? 'image/jpeg';
-      const record = await uploadScan(selectedImage.uri, fileName, mimeType);
+      const record = await uploadScan(selectedImage.uri, fileName, mimeType, accessToken);
       setScanResult(record);
       setHistory((prev) => [record, ...prev]);
     } catch (err) {
@@ -126,7 +145,7 @@ export default function ScanScreen() {
     } finally {
       setSubmitting(false);
     }
-  }, [selectedImage]);
+  }, [selectedImage, accessToken]);
 
   return (
     <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}> 

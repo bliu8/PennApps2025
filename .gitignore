@@ -1,5 +1,6 @@
 node_modules/
 expo-env.d.ts
+.expo
 
 # ENV
 .env

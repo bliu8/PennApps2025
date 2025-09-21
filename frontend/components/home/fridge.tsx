@@ -21,6 +21,7 @@ type FridgeProps = {
   onEditQuantity?: (itemId: string, newQuantity: number) => Promise<void> | void;
   onConsume?: (itemId: string, quantityDelta: number, reason: ConsumeReason) => Promise<void> | void;
   onDelete?: (itemId: string) => Promise<void> | void;
+  showRecipes?: boolean;
 };
 
 function daysUntil(dateIso: string): number {
@@ -137,7 +138,7 @@ function AnimatedInventoryItem({
             <View style={styles.quantityValueBox}>
               <ThemedText type="title" style={styles.quantityText}>{item.quantity}</ThemedText>
             </View>
-            <ThemedText style={[styles.unit]}>{capitalize(item.displayUnit ?? item.baseUnit)}</ThemedText>
+            <ThemedText style={[styles.unit]}>{item.displayUnit ?? item.baseUnit}</ThemedText>
           </View>
 
           <View style={styles.actionsGroup}>
@@ -151,7 +152,7 @@ function AnimatedInventoryItem({
   );
 }
 
-export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: FridgeProps) {
+export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete, showRecipes = true }: FridgeProps) {
   const palette = Colors.light;
   const { addRefreshListener } = useInventoryRefresh();
 
@@ -380,7 +381,7 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
         renderItem={renderItem}
         style={styles.list}
         contentContainerStyle={styles.listContent}
-        ListHeaderComponent={<Recipes recipes={recipes || []} />}
+        ListHeaderComponent={showRecipes ? <Recipes recipes={recipes || []} /> : null}
         showsVerticalScrollIndicator={false}
       />
       {confirmItemId && (
@@ -506,18 +507,23 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   quantityText: {
-    minWidth: 24,
+    minWidth: 40,
     textAlign: 'center',
+    fontSize: 20,
+    fontWeight: '700',
   },
   quantityValueBox: {
-    height: 28,
-    minWidth: 28,
+    height: 32,
+    minWidth: 40,
     alignItems: 'center',
     justifyContent: 'center',
+    paddingHorizontal: 4,
   },
   unit: {
     marginLeft: 4,
     color: Colors.light.subtleText,
+    fontSize: 16,
+    fontWeight: '500',
   },
   actionsGroup: {
     flexDirection: 'row',

@@ -1,5 +1,5 @@
-import { useMemo, useState, useRef } from 'react';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { useMemo, useState, useRef, useEffect } from 'react';
+import { StyleSheet, View, ActivityIndicator, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Modal, Pressable } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -12,9 +12,9 @@ import { useAuthContext } from '@/context/AuthContext';
 import { useInventoryRefresh } from '@/context/InventoryRefreshContext';
 import Stats from '../../components/home/stats';
 import Alerts from '../../components/home/alerts';
-import Fridge from '../../components/home/fridge';
 import { NotificationPopup } from '../../components/notifications/notification-popup';
-import { consumeInventoryItem, deleteInventoryItem, updateInventoryQuantity, scanBarcode, BarcodeScanResult, addBarcodeToInventory } from '@/services/api';
+import { scanBarcode, BarcodeScanResult, addBarcodeToInventory } from '@/services/api';
+import * as Haptics from 'expo-haptics';
 
 export default function HomeScreen() {
   const palette = Colors.light;
@@ -28,6 +28,8 @@ export default function HomeScreen() {
   const [scannedItems, setScannedItems] = useState<BarcodeScanResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const successScale = useRef(new Animated.Value(0)).current;
   
   // Refs for robust scan handling
   const lastScanTimeRef = useRef(0);
@@ -36,6 +38,28 @@ export default function HomeScreen() {
   const frameTrackingIntervalRef = useRef<number | null>(null);
   const barcodeDetectionTimeoutRef = useRef<number | null>(null);
   const barcodeLostTimeoutRef = useRef<number | null>(null);
+
+  // Success animation effect
+  useEffect(() => {
+    if (showSuccessAnimation) {
+      Animated.sequence([
+        Animated.spring(successScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 8,
+        }),
+        Animated.delay(1500),
+        Animated.timing(successScale, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }),
+      ]).start(() => {
+        setShowSuccessAnimation(false);
+      });
+    }
+  }, [showSuccessAnimation, successScale]);
 
   const displayName = useMemo(() => {
     if (user?.name) return user.name.split(' ')[0];
@@ -58,51 +82,6 @@ export default function HomeScreen() {
         <Alerts />
         <Stats />
 
-        <Fridge
-          accessToken={accessToken || undefined}
-          onConsume={async (itemId: string, quantityDelta: number, reason: 'used' | 'discarded') => {
-            if (!accessToken) {
-              console.error('No access token available');
-              return;
-            }
-            try {
-              await consumeInventoryItem(accessToken, itemId, quantityDelta, reason);
-              console.log(`Consumed item ${itemId}: ${quantityDelta} ${reason}`);
-              triggerRefresh();
-            } catch (error) {
-              console.error('Failed to consume item:', error);
-              throw error;
-            }
-          }}
-          onEditQuantity={async (itemId: string, newQuantity: number) => {
-            if (!accessToken) {
-              console.error('No access token available');
-              return;
-            }
-            try {
-              await updateInventoryQuantity(accessToken, itemId, newQuantity);
-              console.log(`Updated item ${itemId} quantity to ${newQuantity}`);
-              triggerRefresh();
-            } catch (error) {
-              console.error('Failed to update quantity:', error);
-              throw error;
-            }
-          }}
-          onDelete={async (itemId: string) => {
-            if (!accessToken) {
-              console.error('No access token available');
-              return;
-            }
-            try {
-              await deleteInventoryItem(accessToken, itemId);
-              console.log(`Deleted item ${itemId}`);
-              triggerRefresh();
-            } catch (error) {
-              console.error('Failed to delete item:', error);
-              throw error;
-            }
-          }}
-        />
 
         <SurfaceCard
           onPress={() => { 
@@ -268,10 +247,20 @@ export default function HomeScreen() {
                           }
                         }
                         console.log('All items processed successfully');
+                        
+                        // Trigger haptic feedback
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                        
+                        // Show success animation
+                        setShowSuccessAnimation(true);
+                        setTimeout(() => setShowSuccessAnimation(false), 2000);
+                        
                         setScannedItems([]);
                         triggerRefresh();
                       } catch (e) {
                         console.error('Failed to process items:', e);
+                        // Trigger error haptic feedback
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
                       } finally {
                         setIsProcessing(false);
                       }
@@ -313,6 +302,21 @@ export default function HomeScreen() {
             accessToken={accessToken || undefined}
             onClose={() => setShowNotifications(false)}
           />
+        )}
+
+        {/* Success Animation */}
+        {showSuccessAnimation && (
+          <View style={styles.successOverlay}>
+            <Animated.View style={[styles.successContent, { transform: [{ scale: successScale }] }]}>
+              <View style={styles.successIcon}>
+                <IconSymbol name="checkmark.circle.fill" size={80} color="#4CAF50" />
+              </View>
+              <ThemedText style={styles.successTitle}>Success!</ThemedText>
+              <ThemedText style={styles.successMessage}>
+                Item added to your fridge
+              </ThemedText>
+            </Animated.View>
+          </View>
         )}
       </View>
     </SafeAreaView>
@@ -461,6 +465,46 @@ const styles = StyleSheet.create({
     color: '#666',
     textAlign: 'center',
     lineHeight: 22,
+  },
+  successOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1000,
+  },
+  successContent: {
+    backgroundColor: 'white',
+    borderRadius: 20,
+    padding: 32,
+    alignItems: 'center',
+    maxWidth: 300,
+    width: '90%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 10,
+  },
+  successIcon: {
+    marginBottom: 16,
+    transform: [{ scale: 1.2 }],
+  },
+  successTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#4CAF50',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  successMessage: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
   },
 });
 

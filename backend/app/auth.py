@@ -170,14 +170,22 @@ async def get_current_user(
     
     if not existing_account:
         # Create new account for first-time user
-        # Use email as phone for now since we don't have phone from Auth0
-        phone = auth0_user.email or f"user_{auth0_user.sub[:8]}"
+        # Generate unique phone number using auth0_id to avoid duplicates
+        phone = f"user_{auth0_user.sub.replace('|', '_').replace('-', '_')}"
         new_account = Account(
             auth0_id=auth0_user.sub,
             name=auth0_user.name or auth0_user.email,
             phone=phone,
             phone_verified=False
         )
-        await account_repo.create_account(new_account)
+        try:
+            await account_repo.create_account(new_account)
+        except Exception as e:
+            # If account creation fails (e.g., duplicate key), try to find existing account
+            # This can happen in race conditions
+            existing_account = await account_repo.find_by_auth0_id(auth0_user.sub)
+            if not existing_account:
+                # If still no account found, re-raise the error
+                raise e
     
     return auth0_user

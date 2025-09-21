@@ -1,11 +1,16 @@
-import { useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState, useEffect, useCallback } from 'react';
 import { Dimensions, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, View } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 
 import { ThemedText } from '@/components/themed-text';
 import { SurfaceCard } from '@/components/ui/surface-card';
 import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useColorScheme } from '@/hooks/use-color-scheme';
+import { useImpactMetrics } from '@/hooks/use-impact-metrics';
+import { useAuthContext } from '@/context/AuthContext';
+import { useInventoryRefresh } from '@/context/InventoryRefreshContext';
+import { API_BASE_URL } from '@/utils/env';
 
 export function Stats() {
   const theme = useColorScheme() ?? 'light';
@@ -16,40 +21,99 @@ export function Stats() {
   const cardWidth = useMemo(() => screenWidth - horizontalPadding * 2, [screenWidth]);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<ScrollView | null>(null);
+  const { addRefreshListener } = useInventoryRefresh();
+
+  // Get real impact metrics from the database
+  const { metrics: impactMetrics, loading: impactLoading } = useImpactMetrics();
+  const { accessToken } = useAuthContext();
+  
+  // State for additional inventory stats
+  const [inventoryStats, setInventoryStats] = useState({
+    activeItems: 0,
+    dueSoonItems: 0,
+    loading: true
+  });
+
+  // Fetch inventory stats
+  const fetchInventoryStats = useCallback(async () => {
+    if (!accessToken) {
+      setInventoryStats({ activeItems: 0, dueSoonItems: 0, loading: false });
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/inventory`, {
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        const items = data.items || [];
+        const now = new Date();
+        const threeDaysFromNow = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+        
+        const activeItems = items.length;
+        const dueSoonItems = items.filter((item: any) => {
+          const expiryDate = new Date(item.est_expiry_date);
+          return expiryDate <= threeDaysFromNow && expiryDate >= now;
+        }).length;
+        
+        setInventoryStats({ activeItems, dueSoonItems, loading: false });
+      } else {
+        setInventoryStats({ activeItems: 0, dueSoonItems: 0, loading: false });
+      }
+    } catch (error) {
+      setInventoryStats({ activeItems: 0, dueSoonItems: 0, loading: false });
+    }
+  }, [accessToken]);
+
+  // Fetch stats when component mounts
+  useEffect(() => {
+    fetchInventoryStats();
+  }, [fetchInventoryStats]);
+
+  // Refresh stats when screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      fetchInventoryStats();
+    }, [fetchInventoryStats])
+  );
+
+  // Listen for inventory changes
+  useEffect(() => {
+    const handleInventoryChange = () => {
+      fetchInventoryStats();
+    };
+
+    const removeListener = addRefreshListener(handleInventoryChange);
+    return removeListener;
+  }, [fetchInventoryStats, addRefreshListener]);
 
   const pages = useMemo(() => {
-    // Tailored to MVP personal inventory goals (no neighborhood sharing)
-    return [
-      {
-        id: 'items-rescued',
-        label: 'Items rescued (all‑time)',
-        value: '8',
-        helperText: 'Used on their last day — great job!',
-        icon: 'checkmark.seal.fill' as const,
-      },
-      {
-        id: 'waste-reduced',
-        label: 'Waste reduced (est.)',
-        value: '12 lbs',
-        helperText: 'Category heuristics × rescued items',
-        icon: 'leaf.fill' as const,
-      },
+    // Combine impact metrics with inventory stats
+    const stats = [
+      ...(impactMetrics || []),
       {
         id: 'active-items',
         label: 'Active items',
-        value: '14',
+        value: inventoryStats.loading ? '...' : inventoryStats.activeItems.toString(),
         helperText: 'In your pantry & fridge',
         icon: 'archivebox.fill' as const,
       },
       {
         id: 'due-soon',
         label: 'Due soon (next 3 days)',
-        value: '3',
-        helperText: 'We’ll nudge at lunch/dinner',
+        value: inventoryStats.loading ? '...' : inventoryStats.dueSoonItems.toString(),
+        helperText: 'We\'ll nudge at lunch/dinner',
         icon: 'clock.fill' as const,
       },
     ];
-  }, []);
+    
+    return stats;
+  }, [impactMetrics, inventoryStats]);
 
   function handleMomentumEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
     const index = Math.round(e.nativeEvent.contentOffset.x / cardWidth);

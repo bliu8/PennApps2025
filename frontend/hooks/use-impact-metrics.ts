@@ -4,6 +4,7 @@ import { fetchImpactMetrics } from '@/services/api';
 import { ImpactMetric, ImpactResponse } from '@/types/impact';
 import { fallbackImpactMetrics } from '@/constants/mock-data';
 import { useAuthContext } from '@/context/AuthContext';
+import { useInventoryRefresh } from '@/context/InventoryRefreshContext';
 
 type ImpactState = {
   metrics: ImpactMetric[];
@@ -22,6 +23,7 @@ const initialState: ImpactState = {
 export function useImpactMetrics() {
   const [state, setState] = useState<ImpactState>(initialState);
   const { accessToken, status } = useAuthContext();
+  const { addRefreshListener } = useInventoryRefresh();
 
   const load = useCallback(async () => {
     if (!accessToken) {
@@ -43,6 +45,7 @@ export function useImpactMetrics() {
         error: null,
       });
     } catch (error) {
+      console.error('Error loading impact metrics:', error);
       setState((prev) => ({
         ...prev,
         loading: false,
@@ -58,6 +61,16 @@ export function useImpactMetrics() {
       setState((prev) => ({ ...prev, loading: false }));
     }
   }, [status, load]);
+
+  // Listen for inventory changes to refresh impact metrics
+  useEffect(() => {
+    const handleInventoryChange = () => {
+      void load();
+    };
+
+    const removeListener = addRefreshListener(handleInventoryChange);
+    return removeListener;
+  }, [load, addRefreshListener]);
 
   return {
     metrics: state.metrics,

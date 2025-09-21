@@ -15,11 +15,14 @@ export async function fetchImpactMetrics(accessToken: string): Promise<ImpactRes
   const response = await fetch(`${API_BASE_URL}/impact`, {
     headers: buildHeaders(accessToken),
   });
+  
   if (!response.ok) {
+    const errorText = await response.text();
     throw new Error(`Unable to load impact metrics (${response.status})`);
   }
 
-  return (await response.json()) as ImpactResponse;
+  const data = await response.json();
+  return data as ImpactResponse;
 }
 
 // REPLACE ENDPOINTS WITH REAL BACKEND ROUTES

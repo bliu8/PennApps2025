@@ -1,4 +1,4 @@
-export type ImpactMetricIcon = 'heart.fill' | 'sparkles' | 'leaf.fill';
+export type ImpactMetricIcon = 'heart.fill' | 'sparkles' | 'leaf.fill' | 'archivebox.fill' | 'clock.fill';
 
 export type ImpactMetric = {
   id: string;

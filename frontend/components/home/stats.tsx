@@ -19,8 +19,10 @@ export function Stats() {
   const horizontalPadding = 20; // matches home content padding
   const GAP = 12;
   const cardWidth = useMemo(() => screenWidth - horizontalPadding * 2, [screenWidth]);
+  const itemWidth = cardWidth + GAP;
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<ScrollView | null>(null);
+  const lastOffsetXRef = useRef(0);
   const { addRefreshListener } = useInventoryRefresh();
 
   // Get real impact metrics from the database
@@ -115,10 +117,57 @@ export function Stats() {
     return stats;
   }, [impactMetrics, inventoryStats]);
 
+  // Build looped pages: [last, ...pages, first]
+  const carouselItems = useMemo(() => {
+    if (!pages.length) return [] as typeof pages;
+    const first = pages[0];
+    const last = pages[pages.length - 1];
+    return [last, ...pages, first];
+  }, [pages]);
+
+  // Jump to the first real item on mount/when data changes
+  useEffect(() => {
+    if (!scrollRef.current || pages.length === 0) return;
+    const x = itemWidth; // index 1 (first real)
+    requestAnimationFrame(() => {
+      scrollRef.current?.scrollTo({ x, animated: false });
+      lastOffsetXRef.current = x;
+    });
+  }, [itemWidth, pages.length]);
+
   function handleMomentumEnd(e: NativeSyntheticEvent<NativeScrollEvent>) {
-    const index = Math.round(e.nativeEvent.contentOffset.x / cardWidth);
-    setActiveIndex(index);
+    const offsetX = e.nativeEvent.contentOffset.x;
+    const pageIndex = Math.round(offsetX / itemWidth); // index in carouselItems
+
+    // If we hit the clones, jump without animation to the mirrored real item
+    if (pageIndex === 0) {
+      // jumped to leading clone → go to last real item
+      const x = itemWidth * pages.length;
+      scrollRef.current?.scrollTo({ x, animated: false });
+      lastOffsetXRef.current = x;
+      setActiveIndex(pages.length - 1);
+      return;
+    }
+    if (pageIndex === pages.length + 1) {
+      // jumped to trailing clone → go to first real item
+      const x = itemWidth; // index 1
+      scrollRef.current?.scrollTo({ x, animated: false });
+      lastOffsetXRef.current = x;
+      setActiveIndex(0);
+      return;
+    }
+
+    // Normal case
+    const realIndex = pageIndex - 1;
+    setActiveIndex(realIndex);
+    lastOffsetXRef.current = offsetX;
   }
+
+  const handleAdvance = useCallback(() => {
+    if (!scrollRef.current) return;
+    const nextOffset = lastOffsetXRef.current + itemWidth;
+    scrollRef.current.scrollTo({ x: nextOffset, animated: true });
+  }, [itemWidth]);
 
   return (
     <View style={styles.container}>
@@ -126,14 +175,14 @@ export function Stats() {
         ref={scrollRef}
         horizontal
         showsHorizontalScrollIndicator={false}
-        snapToInterval={cardWidth + GAP}
+        snapToInterval={itemWidth}
         decelerationRate="fast"
         disableIntervalMomentum
         onMomentumScrollEnd={handleMomentumEnd}
         contentContainerStyle={{ paddingHorizontal: 0 }}
       >
-        {pages.map((m, i) => (
-          <SurfaceCard key={m.id} style={[styles.card, { width: cardWidth, marginRight: i < pages.length - 1 ? GAP : 0 }]}> 
+        {carouselItems.map((m, i) => (
+          <SurfaceCard key={`${m.id}-${i}`} onPress={handleAdvance} style={[styles.card, { width: cardWidth, marginRight: i < carouselItems.length - 1 ? GAP : 0 }]}> 
             <View style={styles.row}>
               <IconSymbol name={m.icon} size={20} color={palette.tint} />
               <ThemedText style={[styles.metricLabel, { color: palette.subtleText }]}>{m.label}</ThemedText>
@@ -172,7 +221,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   card: {
-    paddingVertical: 10, // even shorter
+    paddingVertical: 12,
   },
   row: {
     flexDirection: 'row',

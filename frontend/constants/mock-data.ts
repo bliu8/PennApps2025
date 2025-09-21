@@ -6,7 +6,7 @@ export const fallbackImpactMetrics: ImpactMetric[] = [
     id: 'neighbors-helped',
     label: 'Neighbors helped',
     value: '12',
-    helperText: 'Up 3 this month — keep the momentum! ❤️',
+    helperText: 'Up 3 this month — keep the momentum!',
     icon: 'heart.fill',
   },
   {

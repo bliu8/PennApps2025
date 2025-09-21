@@ -15,11 +15,14 @@ export async function fetchImpactMetrics(accessToken: string): Promise<ImpactRes
   const response = await fetch(`${API_BASE_URL}/impact`, {
     headers: buildHeaders(accessToken),
   });
+  
   if (!response.ok) {
+    const errorText = await response.text();
     throw new Error(`Unable to load impact metrics (${response.status})`);
   }
 
-  return (await response.json()) as ImpactResponse;
+  const data = await response.json();
+  return data as ImpactResponse;
 }
 
 // REPLACE ENDPOINTS WITH REAL BACKEND ROUTES
@@ -60,4 +63,17 @@ export async function deleteInventoryItem(accessToken: string, itemId: string): 
     method: 'DELETE',
     headers: buildHeaders(accessToken),
   }).catch(() => {});
+}
+
+// Placeholder endpoint: backend to define the route contract
+export async function submitBarcode(accessToken: string, code: string, symbology?: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/scan/barcode`, {
+    method: 'POST',
+    headers: buildHeaders(accessToken, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ code, symbology }),
+  });
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => '');
+    throw new Error(`Failed to submit barcode: ${response.status} ${errorText}`);
+  }
 }

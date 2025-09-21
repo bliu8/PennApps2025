@@ -112,29 +112,32 @@ def inventory_db_to_api(inventory_db: InventoryItemDB) -> InventoryItem:
         est_expiry_date=inventory_db.est_expiry_date.isoformat()
     )
 
-def calculate_food_waste_impact(item: InventoryItemDB, reason: str = "used") -> dict:
+def calculate_food_waste_impact(item: InventoryItemDB, reason: str = "used", quantity_delta: float = None) -> dict:
     """Calculate environmental impact when food is consumed or discarded"""
+    # Use quantity_delta if provided, otherwise use item.quantity
+    quantity_to_calculate = quantity_delta if quantity_delta is not None else item.quantity
+    
     # Basic weight estimation based on unit and quantity
     weight_lb = 0.0
     
     if item.base_unit in ["lb"]:
-        weight_lb = item.quantity
+        weight_lb = quantity_to_calculate
     elif item.base_unit in ["kg"]:
-        weight_lb = item.quantity * 2.20462
+        weight_lb = quantity_to_calculate * 2.20462
     elif item.base_unit in ["g"]:
-        weight_lb = item.quantity * 0.00220462
+        weight_lb = quantity_to_calculate * 0.00220462
     elif item.base_unit in ["oz"]:
-        weight_lb = item.quantity / 16
+        weight_lb = quantity_to_calculate / 16
     elif item.base_unit == "pieces":
         # Rough estimates for common items
         if "yogurt" in item.name.lower():
-            weight_lb = item.quantity * 0.35  # ~6oz container
+            weight_lb = quantity_to_calculate * 0.35  # ~6oz container
         elif "avocado" in item.name.lower():
-            weight_lb = item.quantity * 0.4  # ~6.4oz each
+            weight_lb = quantity_to_calculate * 0.4  # ~6.4oz each
         elif "spinach" in item.name.lower():
-            weight_lb = item.quantity * 0.3  # ~5oz bag
+            weight_lb = quantity_to_calculate * 0.3  # ~5oz bag
         else:
-            weight_lb = item.quantity * 0.25  # Default estimate
+            weight_lb = quantity_to_calculate * 0.25  # Default estimate
     
     # CO2 impact: roughly 3.3 kg CO2 per kg of food waste
     co2_prevented_kg = weight_lb * 0.453592 * 3.3 if reason == "used" else 0

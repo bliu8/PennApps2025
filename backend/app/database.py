@@ -88,4 +88,6 @@ async def create_indexes():
 
 def get_database():
     """Get database instance"""
+    if db.database is None:
+        raise RuntimeError("Database connection not established. Make sure to call connect_to_mongo() first.")
     return db.database

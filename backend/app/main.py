@@ -455,7 +455,7 @@ async def consume_inventory_item(
         raise HTTPException(status_code=404, detail="Item not found")
     
     # Calculate impact before consumption
-    impact = calculate_food_waste_impact(item, payload.reason)
+    impact = calculate_food_waste_impact(item, payload.reason, payload.quantity_delta)
     
     updated_item = await inventory_repo.consume_item(
         item_object_id, 
@@ -466,15 +466,14 @@ async def consume_inventory_item(
     if not updated_item:
         raise HTTPException(status_code=400, detail="Failed to consume item")
     
-    # Update user metrics if item was used (not discarded)
-    if payload.reason == "used":
-        await user_metrics_repo.update_metrics(
-            account.id,
-            co2_prevented=impact["co2_prevented_kg"],
-            food_saved=impact["food_saved_lbs"],
-            money_saved=impact["money_saved_usd"],
-            items_rescued_added=1 if updated_item.status == "consumed" else 0
-        )
+    # Update user metrics for both used and discarded items
+    await user_metrics_repo.update_metrics(
+        account.id,
+        co2_prevented=impact["co2_prevented_kg"],
+        food_saved=impact["food_saved_lbs"],
+        money_saved=impact["money_saved_usd"],
+        items_rescued_added=1 if updated_item.status == "consumed" else 0
+    )
     
     return {"item": inventory_db_to_api(updated_item).dict()}
 

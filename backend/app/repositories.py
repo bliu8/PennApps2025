@@ -345,7 +345,8 @@ class UserMetricsRepository(BaseRepository):
             {"$set": update_data}
         )
         
-        return await self.get_or_create_metrics(owner_id)
+        updated_metrics = await self.get_or_create_metrics(owner_id)
+        return updated_metrics
 
 # Repository instances
 account_repo = AccountRepository()

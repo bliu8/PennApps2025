@@ -2,7 +2,6 @@ import { PropsWithChildren, useCallback } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { Image } from 'expo-image';
-
 import { useAuthContext } from '@/context/AuthContext';
 import { ThemedText } from '@/components/themed-text';
 import { Colors } from '@/constants/theme';

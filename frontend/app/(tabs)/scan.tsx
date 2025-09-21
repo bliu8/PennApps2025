@@ -31,15 +31,20 @@ export default function ScanScreen() {
             <View>
               <ThemedText type="title">Fridge</ThemedText>
             </View>
-            <Pressable onPress={() => router.push('/settings')} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
-              <IconSymbol name="gearshape.fill" size={22} color={palette.icon} />
-            </Pressable>
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <Pressable onPress={() => router.push('/camera')} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+                <IconSymbol name="camera.fill" size={22} color={palette.icon} />
+              </Pressable>
+              <Pressable onPress={() => router.push('/settings')} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
+                <IconSymbol name="gearshape.fill" size={22} color={palette.icon} />
+              </Pressable>
+            </View>
           </View>
         </View>
         <View style={[styles.content, { flex: 1, paddingBottom: 0 }]}> 
           <View style={{ flex: 1 }}>
             <Fridge
-              accessToken={accessToken}
+              accessToken={accessToken ?? undefined}
               onEditQuantity={(id, qty) => {
                 if (!accessToken) return;
                 return updateInventoryQuantity(accessToken, id, qty);

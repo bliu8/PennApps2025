@@ -13,6 +13,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Allow Leftys to scan packaged food labels.",
         "NSPhotoLibraryUsageDescription": "Allow Leftys to access your photo library when uploading receipts and packaging labels.",
+        "NSPhotoLibraryAddUsageDescription": "Allow Leftys to save photos you capture.",
         "NSLocationWhenInUseUsageDescription": "Allow Leftys to show nearby pickups on the map."
       }
     },

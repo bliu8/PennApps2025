@@ -82,7 +82,7 @@ export default function HomeScreen() {
                 barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'],
               } as any}
             />
-            <SafeAreaView style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 16, zIndex: 10 }}>
+            <SafeAreaView style={{ position: 'absolute', left: 0, right: 0, padding: 16, zIndex: 10 }}>
               <Pressable 
                 onPress={() => setShowScanner(false)} 
                 style={({ pressed }) => [{ 

@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from math import radians, cos, sin, asin, sqrt
 
-from .models import PostingDB, Posting, Coordinates, ScanRecordDB, ScanRecord
+from .models import PostingDB, Posting, Coordinates, ScanRecordDB, ScanRecord, InventoryItemDB, InventoryItem, UserMetrics
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculate the great circle distance between two points on earth in kilometers"""
@@ -98,3 +98,52 @@ def get_impact_narrative(allergens: list, quantity: str = "1 item") -> str:
         base_messages.append("Reduces food packaging waste")
     
     return " • ".join(base_messages[:2])  # Keep it concise
+
+def inventory_db_to_api(inventory_db: InventoryItemDB) -> InventoryItem:
+    """Convert database inventory item to API response format"""
+    return InventoryItem(
+        id=str(inventory_db.id),
+        name=inventory_db.name,
+        quantity=inventory_db.remaining_quantity,  # Use remaining quantity for display
+        baseUnit=inventory_db.base_unit,
+        displayUnit=inventory_db.display_unit,
+        unitsPerDisplay=inventory_db.units_per_display,
+        input_date=inventory_db.input_date.isoformat(),
+        est_expiry_date=inventory_db.est_expiry_date.isoformat()
+    )
+
+def calculate_food_waste_impact(item: InventoryItemDB, reason: str = "used") -> dict:
+    """Calculate environmental impact when food is consumed or discarded"""
+    # Basic weight estimation based on unit and quantity
+    weight_lb = 0.0
+    
+    if item.base_unit in ["lb"]:
+        weight_lb = item.quantity
+    elif item.base_unit in ["kg"]:
+        weight_lb = item.quantity * 2.20462
+    elif item.base_unit in ["g"]:
+        weight_lb = item.quantity * 0.00220462
+    elif item.base_unit in ["oz"]:
+        weight_lb = item.quantity / 16
+    elif item.base_unit == "pieces":
+        # Rough estimates for common items
+        if "yogurt" in item.name.lower():
+            weight_lb = item.quantity * 0.35  # ~6oz container
+        elif "avocado" in item.name.lower():
+            weight_lb = item.quantity * 0.4  # ~6.4oz each
+        elif "spinach" in item.name.lower():
+            weight_lb = item.quantity * 0.3  # ~5oz bag
+        else:
+            weight_lb = item.quantity * 0.25  # Default estimate
+    
+    # CO2 impact: roughly 3.3 kg CO2 per kg of food waste
+    co2_prevented_kg = weight_lb * 0.453592 * 3.3 if reason == "used" else 0
+    
+    # Money saved estimate (rough average $2-4 per lb of food)
+    money_saved = weight_lb * 3.0 if reason == "used" else 0
+    
+    return {
+        "food_saved_lbs": weight_lb if reason == "used" else 0,
+        "co2_prevented_kg": co2_prevented_kg,
+        "money_saved_usd": money_saved
+    }

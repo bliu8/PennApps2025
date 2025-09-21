@@ -25,14 +25,16 @@ export async function fetchImpactMetrics(accessToken: string): Promise<ImpactRes
 // REPLACE ENDPOINTS WITH REAL BACKEND ROUTES
 // TODO make sure that all of this works
 export async function updateInventoryQuantity(accessToken: string, itemId: string, newQuantity: number): Promise<void> {
-  // Placeholder optimistic stub
-
-
-  await fetch(`${API_BASE_URL}/inventory/${encodeURIComponent(itemId)}`, {
+  const response = await fetch(`${API_BASE_URL}/inventory/${encodeURIComponent(itemId)}`, {
     method: 'PATCH',
     headers: buildHeaders(accessToken, { 'Content-Type': 'application/json' }),
     body: JSON.stringify({ quantity: newQuantity }),
-  }).catch(() => {});
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to update quantity: ${response.status}`);
+  }
 }
 
 export async function consumeInventoryItem(
@@ -41,11 +43,16 @@ export async function consumeInventoryItem(
   quantityDelta: number,
   reason: 'used' | 'discarded',
 ): Promise<void> {
-  await fetch(`${API_BASE_URL}/inventory/${encodeURIComponent(itemId)}/consume`, {
+  const response = await fetch(`${API_BASE_URL}/inventory/${encodeURIComponent(itemId)}/consume`, {
     method: 'POST',
     headers: buildHeaders(accessToken, { 'Content-Type': 'application/json' }),
     body: JSON.stringify({ quantity_delta: quantityDelta, reason }),
-  }).catch(() => {});
+  });
+  
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to consume item: ${response.status}`);
+  }
 }
 
 export async function deleteInventoryItem(accessToken: string, itemId: string): Promise<void> {

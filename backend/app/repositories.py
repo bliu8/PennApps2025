@@ -7,7 +7,7 @@ import geohash
 from math import radians, cos, sin, asin, sqrt
 
 from .database import get_database
-from .models import Account, PostingDB, Claim, Message, ScanRecordDB, GeoLocation
+from .models import Account, PostingDB, Claim, Message, ScanRecordDB, GeoLocation, InventoryItemDB, UserMetrics
 
 class BaseRepository:
     def __init__(self, collection_name: str):
@@ -210,9 +210,148 @@ class ScanRepository(BaseRepository):
         docs = await cursor.to_list(length=limit)
         return [ScanRecordDB(**doc) for doc in docs]
 
+class InventoryRepository(BaseRepository):
+    def __init__(self):
+        super().__init__("inventory_items")
+    
+    async def create_item(self, item: InventoryItemDB) -> InventoryItemDB:
+        item.remaining_quantity = item.quantity  # Initially, remaining equals total
+        result = await self.collection.insert_one(item.dict(by_alias=True))
+        item.id = result.inserted_id
+        return item
+    
+    async def find_by_owner(self, owner_id: ObjectId, status: str = "active") -> List[InventoryItemDB]:
+        query = {"owner_id": owner_id}
+        if status:
+            query["status"] = status
+        
+        cursor = self.collection.find(query).sort("est_expiry_date", 1)  # Sort by expiry date
+        docs = await cursor.to_list(length=None)
+        return [InventoryItemDB(**doc) for doc in docs]
+    
+    async def find_by_id(self, item_id: ObjectId) -> Optional[InventoryItemDB]:
+        doc = await self.collection.find_one({"_id": item_id})
+        return InventoryItemDB(**doc) if doc else None
+    
+    async def update_quantity(self, item_id: ObjectId, new_quantity: float) -> bool:
+        result = await self.collection.update_one(
+            {"_id": item_id},
+            {
+                "$set": {
+                    "quantity": new_quantity,
+                    "remaining_quantity": new_quantity,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        return result.modified_count > 0
+    
+    async def consume_item(
+        self, 
+        item_id: ObjectId, 
+        quantity_delta: float, 
+        reason: str = "used"
+    ) -> Optional[InventoryItemDB]:
+        # Get current item
+        item = await self.find_by_id(item_id)
+        if not item:
+            return None
+        
+        new_remaining = max(0, item.remaining_quantity - quantity_delta)
+        update_data = {
+            "remaining_quantity": new_remaining,
+            "updated_at": datetime.utcnow()
+        }
+        
+        # If item is fully consumed, update status and timestamp
+        if new_remaining <= 0:
+            if reason == "used":
+                update_data["status"] = "consumed"
+                update_data["used_at"] = datetime.utcnow()
+            else:  # discarded
+                update_data["status"] = "discarded"
+                update_data["discarded_at"] = datetime.utcnow()
+        
+        result = await self.collection.update_one(
+            {"_id": item_id},
+            {"$set": update_data}
+        )
+        
+        if result.modified_count > 0:
+            return await self.find_by_id(item_id)
+        return None
+    
+    async def delete_item(self, item_id: ObjectId) -> bool:
+        result = await self.collection.delete_one({"_id": item_id})
+        return result.deleted_count > 0
+    
+    async def find_expiring_soon(
+        self, 
+        owner_id: ObjectId, 
+        days_ahead: int = 3
+    ) -> List[InventoryItemDB]:
+        """Find items expiring within the next N days"""
+        cutoff_date = datetime.utcnow() + timedelta(days=days_ahead)
+        
+        query = {
+            "owner_id": owner_id,
+            "status": "active",
+            "est_expiry_date": {"$lte": cutoff_date}
+        }
+        
+        cursor = self.collection.find(query).sort("est_expiry_date", 1)
+        docs = await cursor.to_list(length=None)
+        return [InventoryItemDB(**doc) for doc in docs]
+
+class UserMetricsRepository(BaseRepository):
+    def __init__(self):
+        super().__init__("user_metrics")
+    
+    async def get_or_create_metrics(self, owner_id: ObjectId) -> UserMetrics:
+        doc = await self.collection.find_one({"owner_id": owner_id})
+        if doc:
+            return UserMetrics(**doc)
+        
+        # Create new metrics for user
+        metrics = UserMetrics(owner_id=owner_id)
+        result = await self.collection.insert_one(metrics.dict(by_alias=True))
+        metrics.id = result.inserted_id
+        return metrics
+    
+    async def update_metrics(
+        self, 
+        owner_id: ObjectId,
+        co2_prevented: float = 0,
+        food_saved: float = 0,
+        money_saved: float = 0,
+        meals_added: int = 0,
+        items_rescued_added: int = 0
+    ) -> UserMetrics:
+        """Update user metrics by adding the specified amounts"""
+        metrics = await self.get_or_create_metrics(owner_id)
+        
+        update_data = {
+            "co2_emissions_prevented_kg": metrics.co2_emissions_prevented_kg + co2_prevented,
+            "food_saved_lbs": metrics.food_saved_lbs + food_saved,
+            "money_saved_usd": metrics.money_saved_usd + money_saved,
+            "meals_created": metrics.meals_created + meals_added,
+            "items_rescued": metrics.items_rescued + items_rescued_added,
+            "last_activity": datetime.utcnow(),
+            "updated_at": datetime.utcnow()
+        }
+        
+        await self.collection.update_one(
+            {"owner_id": owner_id},
+            {"$set": update_data}
+        )
+        
+        return await self.get_or_create_metrics(owner_id)
+
 # Repository instances
 account_repo = AccountRepository()
 posting_repo = PostingRepository()
 claim_repo = ClaimRepository()
 message_repo = MessageRepository()
 scan_repo = ScanRepository()
+inventory_repo = InventoryRepository()
+user_metrics_repo = UserMetricsRepository()

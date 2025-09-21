@@ -8,7 +8,7 @@ import * as SecureStore from 'expo-secure-store';
 WebBrowser.maybeCompleteAuthSession();
 
 import { AuthStatus, AuthUser } from '@/types/auth';
-import { AUTH0_CLIENT_ID, AUTH0_DOMAIN } from '@/utils/env';
+import { AUTH0_CLIENT_ID, AUTH0_DOMAIN, AUTH0_AUDIENCE } from '@/utils/env';
 
 type AuthContextValue = {
   status: AuthStatus;
@@ -182,6 +182,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       authorizeUrl.searchParams.set('state', state);
       authorizeUrl.searchParams.set('nonce', nonce);
       authorizeUrl.searchParams.set('prompt', 'none'); // critical for silent renew
+      // Set audience for API access
+      if (AUTH0_AUDIENCE) {
+        authorizeUrl.searchParams.set('audience', AUTH0_AUDIENCE);
+      }
 
       const result = await WebBrowser.openAuthSessionAsync(authorizeUrl.toString(), redirectUri);
       if (result.type !== 'success' || !result.url) {
@@ -246,7 +250,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     const redirectUri = Linking.createURL('/auth/callback');
-    console.log('🔗 DEBUG: Redirect URI =', redirectUri);
     const state = randomString(32);
     const nonce = randomString(32);
     expectedStateRef.current = state;
@@ -259,7 +262,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authorizeUrl.searchParams.set('scope', 'openid profile email');
     authorizeUrl.searchParams.set('state', state);
     authorizeUrl.searchParams.set('nonce', nonce);
-    // Do NOT set audience here to maximize compatibility across providers
+    // Set audience for API access
+    if (AUTH0_AUDIENCE) {
+      authorizeUrl.searchParams.set('audience', AUTH0_AUDIENCE);
+    }
     if (connection) {
       authorizeUrl.searchParams.set('connection', connection);
     }
@@ -302,6 +308,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     const token = params.get('access_token');
     const expiresIn = params.get('expires_in');
+
 
     if (!token || !expiresIn) {
       setStatus('unauthenticated');

@@ -3,8 +3,8 @@ import os
 from datetime import datetime, timedelta
 from typing import List
 
-from .models import Account, PostingDB, GeoLocation, PickupWindow
-from .repositories import account_repo, posting_repo
+from .models import Account, PostingDB, GeoLocation, PickupWindow, InventoryItemDB
+from .repositories import account_repo, posting_repo, inventory_repo
 
 # Sample locations around University of Pennsylvania
 SAMPLE_LOCATIONS = [
@@ -115,6 +115,84 @@ async def create_sample_postings(accounts: List[Account]) -> List[PostingDB]:
     
     return postings
 
+SAMPLE_INVENTORY_ITEMS = [
+    {
+        "name": "Greek Yogurt",
+        "quantity": 3.0,
+        "base_unit": "pieces",
+        "display_unit": "container",
+        "units_per_display": 1.0,
+        "days_until_expiry": 5,
+        "cost_estimate": 4.99
+    },
+    {
+        "name": "Spinach",
+        "quantity": 1.0,
+        "base_unit": "pieces",
+        "display_unit": "bag",
+        "units_per_display": 1.0,
+        "days_until_expiry": 2,
+        "cost_estimate": 2.99
+    },
+    {
+        "name": "Chicken Broth",
+        "quantity": 1.0,
+        "base_unit": "L",
+        "display_unit": "carton",
+        "units_per_display": 1.0,
+        "days_until_expiry": 7,
+        "cost_estimate": 3.49
+    },
+    {
+        "name": "Blueberries",
+        "quantity": 2.0,
+        "base_unit": "pieces",
+        "display_unit": "container",
+        "units_per_display": 1.0,
+        "days_until_expiry": 3,
+        "cost_estimate": 5.99
+    },
+    {
+        "name": "Avocado",
+        "quantity": 1.0,
+        "base_unit": "pieces",
+        "display_unit": "avocado",
+        "units_per_display": 1.0,
+        "days_until_expiry": 1,
+        "cost_estimate": 1.50
+    },
+]
+
+async def create_sample_inventory(accounts: List[Account]) -> List[InventoryItemDB]:
+    """Create sample inventory items for the first account"""
+    if not accounts:
+        return []
+    
+    inventory_items = []
+    primary_account = accounts[0]  # Use first account for demo inventory
+    
+    for item_data in SAMPLE_INVENTORY_ITEMS:
+        now = datetime.utcnow()
+        input_date = now - timedelta(days=1)  # Added yesterday
+        expiry_date = now + timedelta(days=item_data["days_until_expiry"])
+        
+        item = InventoryItemDB(
+            owner_id=primary_account.id,
+            name=item_data["name"],
+            quantity=item_data["quantity"],
+            base_unit=item_data["base_unit"],
+            display_unit=item_data["display_unit"],
+            units_per_display=item_data["units_per_display"],
+            input_date=input_date,
+            est_expiry_date=expiry_date,
+            cost_estimate=item_data["cost_estimate"]
+        )
+        
+        created_item = await inventory_repo.create_item(item)
+        inventory_items.append(created_item)
+    
+    return inventory_items
+
 async def seed_database():
     """Seed database with sample data for development/demo"""
     if os.getenv("SEED_DATABASE", "").lower() != "true":
@@ -130,6 +208,10 @@ async def seed_database():
         # Create sample postings
         postings = await create_sample_postings(accounts)
         print(f"✅ Created {len(postings)} sample postings")
+        
+        # Create sample inventory
+        inventory_items = await create_sample_inventory(accounts)
+        print(f"✅ Created {len(inventory_items)} sample inventory items")
         
         print("🎉 Database seeding completed successfully!")
         

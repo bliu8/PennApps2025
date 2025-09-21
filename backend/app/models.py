@@ -126,6 +126,50 @@ class ScanRecordDB(BaseModel):
         arbitrary_types_allowed = True
         json_encoders = {ObjectId: str}
 
+Unit = Literal["g", "kg", "oz", "lb", "ml", "L", "pieces"]
+
+class InventoryItemDB(BaseModel):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    owner_id: PyObjectId
+    name: str
+    quantity: float
+    base_unit: Unit
+    display_unit: Optional[str] = None  # e.g., 'tub', 'carton', 'clamshell'
+    units_per_display: Optional[float] = None  # how many base units per display unit
+    input_date: datetime
+    est_expiry_date: datetime
+    remaining_quantity: float  # Tracks how much is left after consumption
+    status: Literal["active", "consumed", "expired", "discarded"] = "active"
+    cost_estimate: Optional[float] = None
+    used_at: Optional[datetime] = None
+    discarded_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+class UserMetrics(BaseModel):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    owner_id: PyObjectId
+    co2_emissions_prevented_kg: float = 0.0  # CO2 in kg prevented
+    food_saved_lbs: float = 0.0  # Food saved in lbs
+    money_saved_usd: float = 0.0  # Money saved in USD
+    meals_created: int = 0  # Number of meals created from inventory
+    items_rescued: int = 0  # Items used before expiry
+    streak_days: int = 0  # Current daily usage streak
+    badges: List[str] = []  # Achievement badges
+    last_activity: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
 # API Response models (for FastAPI endpoints)
 class Coordinates(BaseModel):
     latitude: float
@@ -156,3 +200,13 @@ class ScanRecord(BaseModel):
     notes: Optional[str] = None
     mimeType: Optional[str] = None
     createdAt: str
+
+class InventoryItem(BaseModel):
+    id: str
+    name: str
+    quantity: float
+    baseUnit: Unit
+    displayUnit: Optional[str] = None
+    unitsPerDisplay: Optional[float] = None
+    input_date: str  # ISO format
+    est_expiry_date: str  # ISO format

@@ -1,10 +1,11 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { Modal, FlatList, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { SurfaceCard } from '@/components/ui/surface-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
+import { API_BASE_URL } from '@/utils/env';
 
 // TODO: make sure that this data makes sense
 type InventoryItem = {
@@ -22,6 +23,7 @@ type InventoryItem = {
 type ConsumeReason = 'used' | 'discarded';
 
 type FridgeProps = {
+  accessToken?: string;
   onEditQuantity?: (itemId: string, newQuantity: number) => Promise<void> | void;
   onConsume?: (itemId: string, quantityDelta: number, reason: ConsumeReason) => Promise<void> | void;
   onDelete?: (itemId: string) => Promise<void> | void;
@@ -48,62 +50,45 @@ function capitalize(label: string): string {
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
-export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
+export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: FridgeProps) {
   const palette = Colors.light;
 
-  // TODO remove placeholder data
-  const [items, setItems] = useState<InventoryItem[]>([
-    {
-      id: 'it-1',
-      name: 'Spinach',
-      quantity: 1,
-      baseUnit: 'pieces',
-      displayUnit: 'bag',
-      unitsPerDisplay: 1,
-      input_date: new Date(Date.now() - 2*86400000).toISOString(),
-      est_expiry_date: new Date(Date.now() + 0*86400000).toISOString(),
-    },
-    {
-      id: 'it-2',
-      name: 'Greek yogurt',
-      quantity: 3,
-      baseUnit: 'pieces',
-      displayUnit: 'tub',
-      unitsPerDisplay: 1,
-      input_date: new Date(Date.now() - 3*86400000).toISOString(),
-      est_expiry_date: new Date(Date.now() + 1*86400000).toISOString(),
-    },
-    {
-      id: 'it-3',
-      name: 'Chicken broth',
-      quantity: 1,
-      baseUnit: 'L',
-      displayUnit: 'carton',
-      unitsPerDisplay: 1,
-      input_date: new Date(Date.now() - 1*86400000).toISOString(),
-      est_expiry_date: new Date(Date.now() + 4*86400000).toISOString(),
-    },
-    {
-      id: 'it-4',
-      name: 'Blueberries',
-      quantity: 2,
-      baseUnit: 'pieces',
-      displayUnit: 'container',
-      unitsPerDisplay: 1,
-      input_date: new Date(Date.now() - 1*86400000).toISOString(),
-      est_expiry_date: new Date(Date.now() + 2*86400000).toISOString(),
-    },
-    {
-      id: 'it-5',
-      name: 'Avocado',
-      quantity: 1,
-      baseUnit: 'pieces',
-      displayUnit: 'avocado',
-      unitsPerDisplay: 1,
-      input_date: new Date(Date.now() - 6*86400000).toISOString(),
-      est_expiry_date: new Date(Date.now() - 2*86400000).toISOString(),
-    },
-  ]);
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch real inventory data from API
+  useEffect(() => {
+    if (!accessToken) {
+      setLoading(false);
+      return;
+    }
+
+    const fetchInventory = async () => {
+      try {
+        const response = await fetch(`${API_BASE_URL}/inventory`, {
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        setItems(data.items || []);
+      } catch (error) {
+        console.error('Error fetching inventory:', error);
+        // Fallback to empty array on error
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchInventory();
+  }, [accessToken]);
 
   const [confirmItemId, setConfirmItemId] = useState<string | null>(null);
 
@@ -218,6 +203,14 @@ export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
           </View>
         </View>
       </SurfaceCard>
+    );
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <ThemedText>Loading inventory...</ThemedText>
+      </View>
     );
   }
 

@@ -12,6 +12,10 @@ import requests
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jose import JWTError, jwt
+from jose.backends import RSAKey
+
+from .repositories import AccountRepository
+from .models import Account
 
 
 class AuthSettingsError(RuntimeError):
@@ -35,7 +39,13 @@ class Auth0Settings:
         if not domain or not audience:
             raise AuthSettingsError("AUTH0_DOMAIN and AUTH0_AUDIENCE must be configured")
 
-        issuer = issuer or f"https://{domain}/"
+        # Auth0 tokens always have issuer as https://domain/
+        # If AUTH0_ISSUER is set but doesn't start with https://, prepend it
+        if issuer and not issuer.startswith('https://'):
+            issuer = f"https://{issuer}/"
+        elif not issuer:
+            issuer = f"https://{domain}/"
+        
         return cls(domain=domain, audience=audience, issuer=issuer)
 
 
@@ -107,8 +117,10 @@ class Auth0Verifier:
 
     def verify(self, token: str) -> Auth0User:
         key = self._get_signing_key(token)
+        
         try:
-            public_key = jwt.algorithms.RSAAlgorithm.from_jwk(json.dumps(key))
+            public_key = RSAKey(key, algorithm='RS256')
+            
             payload = jwt.decode(
                 token,
                 public_key,
@@ -116,6 +128,7 @@ class Auth0Verifier:
                 audience=self.audience,
                 issuer=self.issuer,
             )
+            
         except JWTError as exc:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired token") from exc
 
@@ -137,7 +150,7 @@ def get_verifier() -> Auth0Verifier:
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_current_user(
+async def get_current_user(
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(_bearer_scheme),
 ) -> Auth0User:
     if credentials is None or not credentials.credentials:
@@ -148,4 +161,23 @@ def get_current_user(
     except AuthSettingsError as exc:  # pragma: no cover - configuration errors are operational
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(exc)) from exc
 
-    return verifier.verify(credentials.credentials)
+    # Verify the JWT token
+    auth0_user = verifier.verify(credentials.credentials)
+    
+    # Ensure user exists in our database
+    account_repo = AccountRepository()
+    existing_account = await account_repo.find_by_auth0_id(auth0_user.sub)
+    
+    if not existing_account:
+        # Create new account for first-time user
+        # Use email as phone for now since we don't have phone from Auth0
+        phone = auth0_user.email or f"user_{auth0_user.sub[:8]}"
+        new_account = Account(
+            auth0_id=auth0_user.sub,
+            name=auth0_user.name or auth0_user.email,
+            phone=phone,
+            phone_verified=False
+        )
+        await account_repo.create_account(new_account)
+    
+    return auth0_user

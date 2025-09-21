@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, View, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router, useLocalSearchParams } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
 import { SurfaceCard } from '@/components/ui/surface-card';
@@ -16,6 +17,7 @@ export default function HomeScreen() {
   const palette = Colors.light;
   // const greeting = useGreeting();
   const { user, accessToken } = useAuthContext();
+  const params = useLocalSearchParams<{ imageUri?: string }>();
   const displayName = useMemo(() => {
     if (user?.name) return user.name.split(' ')[0];
     if (user?.email) return user.email.split('@')[0];
@@ -32,7 +34,7 @@ export default function HomeScreen() {
         <Stats />
         
         <SurfaceCard
-          onPress={() => { console.log('UPLOAD YOUR FOOD'); }}
+          onPress={() => { router.push({ pathname: '/camera', params: { returnTo: '/(tabs)' } }); }}
           style={[
             styles.uploadCard,
             styles.uploadShadow,
@@ -50,6 +52,9 @@ export default function HomeScreen() {
               <IconSymbol name="camera.fill" size={50} color={palette.tint} />
             </View>
             <ThemedText type="subtitle">Upload your food</ThemedText>
+            {typeof params.imageUri === 'string' && params.imageUri.length > 0 && (
+              <Image source={{ uri: params.imageUri }} style={{ width: 120, height: 120, borderRadius: 12 }} />
+            )}
           </View>
         </SurfaceCard>
         

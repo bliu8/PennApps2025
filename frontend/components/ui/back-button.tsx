@@ -19,13 +19,13 @@ export function BackButton() {
 
 const styles = StyleSheet.create({
   btn: {
-    width: 40,
+    // width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: '#FFFFFF',
+    // backgroundColor: '#FFFFFF',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
+    // shadowColor: '#000000',
     shadowOpacity: 0.12,
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 5 },

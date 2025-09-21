@@ -9,6 +9,8 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { API_BASE_URL } from '@/utils/env';
 import { useInventoryRefresh } from '@/context/InventoryRefreshContext';
+import Recipes from '../fridge/recipes';
+import { sampleRecipes } from '@/constants/mock-data';
 
 // TODO: make sure that this data makes sense
 type InventoryItem = {
@@ -443,6 +445,7 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
       <View style={[styles.container, styles.emptyContainer]}>
         <ThemedText style={styles.emptyTitle}>Your fridge is empty</ThemedText>
         <ThemedText style={styles.emptySubtitle}>Add some food items to get started!</ThemedText>
+        <Recipes recipes={sampleRecipes} />
       </View>
     );
   }
@@ -455,6 +458,11 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
         renderItem={renderItem}
         style={styles.list}
         contentContainerStyle={styles.listContent}
+        ListHeaderComponent={
+          <View>
+            <Recipes recipes={sampleRecipes} />
+          </View>
+        }
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

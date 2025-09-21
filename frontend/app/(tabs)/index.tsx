@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Modal, Pressable } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
@@ -19,6 +19,7 @@ export default function HomeScreen() {
   const palette = Colors.light;
   // const greeting = useGreeting();
   const { user, accessToken } = useAuthContext();
+  const insets = useSafeAreaInsets();
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [scannedValue, setScannedValue] = useState<string | null>(null);
@@ -63,7 +64,7 @@ export default function HomeScreen() {
           </View>
         </SurfaceCard>
         
-        <Modal visible={showScanner} animationType="slide" onRequestClose={() => setShowScanner(false)}>
+        <Modal visible={showScanner} animationType="slide" onRequestClose={() => setShowScanner(false)} presentationStyle="fullScreen" statusBarTranslucent>
           <View style={{ flex: 1, backgroundColor: 'black' }}>
             <CameraView
               style={StyleSheet.absoluteFill}
@@ -82,8 +83,8 @@ export default function HomeScreen() {
                 barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'],
               } as any}
             />
-            <SafeAreaView style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 16, zIndex: 10 }}>
-              <Pressable 
+            <View style={{ position: 'absolute', top: insets.top + 12, left: 16, zIndex: 10 }}>
+              <Pressable
                 onPress={() => setShowScanner(false)} 
                 style={({ pressed }) => [{ 
                   width: 44, 
@@ -97,7 +98,7 @@ export default function HomeScreen() {
               >
                 <IconSymbol name="xmark.circle.fill" size={30} color={'white'} />
               </Pressable>
-            </SafeAreaView>
+            </View>
           </View>
         </Modal>
       </View>

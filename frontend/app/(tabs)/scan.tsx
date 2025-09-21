@@ -24,7 +24,7 @@ export default function ScanScreen() {
   }, [user]);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}> 
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]} edges={['top']}> 
       <View style={[styles.container, { backgroundColor: palette.background }]}> 
         <View style={[styles.content]}>
           <View style={styles.header}>
@@ -32,9 +32,6 @@ export default function ScanScreen() {
               <ThemedText type="title">Fridge</ThemedText>
             </View>
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <Pressable onPress={() => router.push('/camera')} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
-                <IconSymbol name="camera.fill" size={22} color={palette.icon} />
-              </Pressable>
               <Pressable onPress={() => router.push('/settings')} style={({ pressed }) => [{ opacity: pressed ? 0.6 : 1 }]}>
                 <IconSymbol name="gearshape.fill" size={22} color={palette.icon} />
               </Pressable>

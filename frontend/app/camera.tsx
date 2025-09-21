@@ -34,7 +34,7 @@ export default function CameraModal() {
       if (photo?.uri) {
         const returnTo = typeof params.returnTo === 'string' ? params.returnTo : undefined;
         if (returnTo) {
-          router.replace({ pathname: returnTo, params: { imageUri: photo.uri } });
+          router.replace({ pathname: returnTo as any, params: { imageUri: photo.uri } });
         } else {
           router.back();
         }
@@ -48,7 +48,7 @@ export default function CameraModal() {
 
   if (!permission?.granted) {
     return (
-      <SafeAreaView style={styles.permissionContainer}>
+      <SafeAreaView style={styles.permissionContainer} edges={[]}>
         <Pressable onPress={requestPermission} style={({ pressed }) => [styles.permissionButton, { opacity: pressed ? 0.7 : 1 }] }>
           <IconSymbol name="camera.fill" size={22} color={palette.background} />
         </Pressable>
@@ -60,7 +60,7 @@ export default function CameraModal() {
     <View style={styles.container}>
       <CameraView ref={cameraRef} style={StyleSheet.absoluteFill} facing="back" enableTorch={false} />
 
-      <SafeAreaView style={styles.overlay}>
+      <SafeAreaView style={styles.overlay} edges={[]}>
         <View style={styles.topBar}>
           <Pressable onPress={onClose} style={({ pressed }) => [styles.iconButton, { opacity: pressed ? 0.7 : 1 }]}>
             <IconSymbol name="xmark.circle.fill" size={30} color={palette.background} />

@@ -34,7 +34,13 @@ export function AuthGate({ children }: PropsWithChildren) {
     <View style={styles.container}>
       {/* Logo placeholder in the middle */}
       <View style={styles.logoContainer}>
-        <ThemedText style={styles.logoPlaceholder}>LOGO HERE</ThemedText>
+        <Image
+          source={require('../../assets/images/icon.png')}
+          style={styles.logo}
+          contentFit="contain"
+          accessible
+          accessibilityLabel="Leftys logo"
+        />
       </View>
       
       {/* Error message if any */}
@@ -79,6 +85,12 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
+  },
+  logo: {
+    width: 140,
+    height: 140,
+    borderRadius: 28,
+    marginBottom: 16,
   },
   logoPlaceholder: {
     fontSize: 20,

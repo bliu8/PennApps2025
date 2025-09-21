@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, FlatList, Pressable, StyleSheet, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { ThemedText } from '@/components/themed-text';
 import { SurfaceCard } from '@/components/ui/surface-card';
@@ -50,6 +51,7 @@ function capitalize(label: string): string {
 
 export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
   const palette = Colors.light;
+  const insets = useSafeAreaInsets();
 
   // TODO remove placeholder data
   const [items, setItems] = useState<InventoryItem[]>([
@@ -235,7 +237,11 @@ export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
         keyExtractor={(it) => it.id}
         renderItem={renderItem}
         style={styles.list}
-        contentContainerStyle={styles.listContent}
+        contentContainerStyle={[
+          styles.listContent,
+          // Ensure space for the bottom tab bar + a small buffer
+          { paddingBottom: Math.max(insets.bottom, 16) + 8 },
+        ]}
         showsVerticalScrollIndicator={false}
       />
       {confirmItemId && (

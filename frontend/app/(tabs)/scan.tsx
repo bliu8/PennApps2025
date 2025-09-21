@@ -22,7 +22,7 @@ export default function ScanScreen() {
   }, [user]);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}> 
+    <SafeAreaView edges={['top']} style={[styles.safeArea, { backgroundColor: palette.background }]}> 
       <View style={[styles.container, { backgroundColor: palette.background }]}> 
         <View style={[styles.content]}>
           <View style={styles.header}>

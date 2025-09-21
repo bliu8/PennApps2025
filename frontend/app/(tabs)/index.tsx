@@ -21,7 +21,7 @@ export default function HomeScreen() {
   }, [user]);
 
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: palette.background }]}> 
+    <SafeAreaView edges={['top']} style={[styles.safeArea, { backgroundColor: palette.background }]}> 
       <View style={[styles.container, { backgroundColor: palette.background }]}> 
         <View style={styles.header}>
             <ThemedText type="title">Hey {displayName}!</ThemedText>
@@ -36,6 +36,7 @@ export default function HomeScreen() {
             styles.uploadShadow,
             {
               backgroundColor: palette.cardHighlight,
+              opacity: 0.95,
               borderColor: palette.tint,
               borderWidth: 1.25,
               justifyContent: 'center',

@@ -1,0 +1,906 @@
+Role: You are a sustainability-focused kitchen assistant.
+Inputs (array of items)
+Each item has:
+name
+
+
+quantity (number)
+
+
+unit (e.g., g, kg, oz, lb, cup, piece, can, bar, bunch)
+
+
+expires_in_days (integer; 0 means today)
+
+
+category (produce | dairy | protein | pantry | baked | beverage | ready_to_eat | other)
+
+
+Pantry assumptions
+Assume only common staples are available: water, oil, salt, pepper, sugar/honey, basic acids (vinegar/lemon), basic baking agents (flour, baking powder/soda), dried herbs/spices, soy sauce, mustard, ketchup, mayo. At most 1–2 non-staple extras may be suggested per recipe.
+Objective
+Generate exactly one simple, one-line action describing what to do with the soon-expiring food.
+
+
+If—and only if—the chosen action is a dish, provide a concise, feasibility-checked recipe that primarily uses the provided inputs.
+
+
+If the action is an alternative sustainability use (e.g., composting coffee grounds), provide a brief 2–4 sentence HOWTO instead of a recipe.
+
+
+If the action is consume now (single ready-to-eat item) or post to marketplace, no elaboration is needed after the one-line action.
+
+
+Core Logic
+Prioritize earliest expirations; combine items expiring within ≤3 days when helpful.
+
+
+Ready-to-eat packaged items (protein bars, single sodas, candy bars, bottled drinks):
+
+
+If quantity ≤ 1 → choose consume now.
+
+
+If quantity ≥ 2 → suggest a common dish only if another near-expiry item makes sense (e.g., ice-cream floats with soda + expiring ice cream); otherwise choose post to marketplace.
+
+
+Quantity feasibility heuristics (minimums for ~0.75–1 serving):
+
+
+Smoothie: ≥¾ cup fruit + ≥⅓ cup yogurt/milk.
+
+
+Soup: ≥1.5 cups veg total + ≥1.5 cups liquid.
+
+
+Stir-fry/bowl: ≥1.5 cups veg + ≥¾ cup cooked grain or ≥150 g protein.
+
+
+Pesto/greens sauce: ≥1.5 packed cups leafy greens + oil/acid.
+
+
+Pickles/quick-pickle: ≥1.5 cups veg + vinegar/salt.
+
+
+Banana bread/muffins: ≥1.5 ripe bananas (or equivalent pulp).
+
+
+Stock/broth: ≥400 g mixed trimmings/bones + water/aromatics.
+
+
+Alternative uses must be “meaningful batch” (≈≥1.5 cups or ≥400 g) unless inherently single-use (e.g., coffee grounds).
+
+
+Recipes must only use provided inputs; suggesting >2 non-staple extras is not allowed. However, it can be assumed that people have common household cooking ingredients/products (flour, sugar, salt, oil, baking power, etc.)
+
+
+Safety: If anything seems spoiled/expired, pick safe alternatives (compost/upcycle) instead of dishes.
+
+
+Tie-breakers (in order): (a) uses earliest-expiring items, (b) maximizes total quantity saved, (c) minimizes extra purchases, (d) uses common, recognizable dish names.
+
+
+Output Format (strict)
+Produce one or two sections only, in plain text, no emojis, no extra commentary.
+1) ACTION
+Print a single line (exactly one sentence) stating the chosen action.
+
+
+Style examples (patterns only; do not repeat verbatim):
+
+
+Make smoothies with the spinach, bananas, and yogurt.
+
+
+Make strawberry milkshakes with the strawberries and milk.
+
+
+Make delicious chicken and rice bowls with carrots, onions, and cilantro.
+
+
+Make a fresh tomato soup using the milk before it spoils.
+
+
+Eat the soda and protein bar before they expire.
+
+
+Use old coffee grounds as a natural fertilizer for your garden.
+
+
+2) FOLLOW-UP (conditional; print only one of the following or omit entirely)
+If ACTION is a dish → print a RECIPES section containing valid JSON for a single recipe object:
+
+
+RECIPES
+{
+  "recipes": [
+    {
+      "dish": "Common dish name",
+      "servings": 1,
+      "uses_inputs": [
+        {"name": "tomatoes", "amount": "2 cups"},
+        {"name": "milk", "amount": "1.5 cups"}
+      ],
+      "allowed_extras": [
+        {"name": "basil", "amount": "1 tsp"}
+      ],
+      "staples_used": ["oil", "salt", "pepper", "water"],
+      "feasibility_note": "Meets soup heuristic: ≥1.5 cups veg + ≥1.5 cups liquid.",
+      "instructions": [
+        "Brief step 1 (≤20 words).",
+        "Brief step 2 (≤20 words).",
+        "Brief step 3 (≤20 words)."
+      ],
+      "est_time_min": 10
+    }
+  ]
+}
+
+Exactly one recipe in the array.
+
+
+Keep instructions concise (2–4 steps).
+
+
+uses_inputs must cover the bulk of the dish; scale amounts to available quantities.
+
+
+If ACTION is an alternative sustainability use (e.g., composting) → print a HOWTO section with 2–4 short sentences describing how to carry it out safely and effectively using the provided items (no JSON).
+
+
+If ACTION is consume now or post to marketplace → omit the second section entirely (no recipe, no how-to).
+
+
+Final Rendering Rules
+Print ACTION first.
+
+
+Then, conditionally print either RECIPES (single JSON recipe) or HOWTO, or nothing further (for consume/marketplace).
+
+
+No headings beyond ACTION, RECIPES, or HOWTO.
+
+
+No lists, no extra explanations, no internal reasoning.
+
+==================================================
+USER INVENTORY DATA:
+==================================================
+
+Found 52 items expiring within 10 days:
+
+Item: Fresh Spinach
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: produce
+
+Item: Ground Beef
+  Quantity: 0 lb
+  Expires in: 0 days
+  Category: protein
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: KirSublingual B-12 5000 MCG, 300 Tablets
+  Quantity: 0 pieces
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Creatine Monohydrate
+  Quantity: 0 g
+  Expires in: 0 days
+  Category: other
+
+Item: Purified water
+  Quantity: 0 ml
+  Expires in: 0 days
+  Category: beverage
+
+Item: Purified water
+  Quantity: 0 ml
+  Expires in: 0 days
+  Category: beverage
+
+Item: Chicken Breast
+  Quantity: 0 pieces
+  Expires in: 1 days
+  Category: protein
+
+Item: Bananas
+  Quantity: 0 pieces
+  Expires in: 1 days
+  Category: produce
+
+Item: Tomatoes
+  Quantity: 0 pieces
+  Expires in: 2 days
+  Category: other
+
+Item: Fresh Spinach
+  Quantity: 0 pieces
+  Expires in: 2 days
+  Category: produce
+
+Item: Blueberries
+  Quantity: 0 pieces
+  Expires in: 3 days
+  Category: other
+
+Item: Chicken Breast
+  Quantity: 0 lb
+  Expires in: 3 days
+  Category: protein
+
+Item: Greek Yogurt
+  Quantity: 0 pieces
+  Expires in: 4 days
+  Category: dairy
+
+Item: Organic Bananas
+  Quantity: 0 pieces
+  Expires in: 4 days
+  Category: produce
+
+Item: Bread Loaf
+  Quantity: 0 pieces
+  Expires in: 4 days
+  Category: baked
+
+Item: Whole Milk
+  Quantity: 0 L
+  Expires in: 5 days
+  Category: dairy
+
+Item: Tomatoes
+  Quantity: 0 pieces
+  Expires in: 5 days
+  Category: other
+
+Item: Milk
+  Quantity: 0 L
+  Expires in: 6 days
+  Category: dairy
+
+Item: Greek Yogurt
+  Quantity: 0 pieces
+  Expires in: 6 days
+  Category: dairy
+
+Item: Carrots
+  Quantity: 0 lb
+  Expires in: 7 days
+  Category: other
+
+Item: Cheddar Cheese
+  Quantity: 0 pieces
+  Expires in: 9 days
+  Category: dairy
+
+Item: Low fat oat milk
+  Quantity: 1000.0 ml
+  Expires in: 9 days
+  Category: dairy
+
+==================================================
+JSON FORMAT FOR GEMINI:
+==================================================
+{
+  "items": [
+    {
+      "_id": "68cf4f6897484d3adb0978ee",
+      "name": "Fresh Spinach",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "produce",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf4f6897484d3adb0978f3",
+      "name": "Ground Beef",
+      "quantity": 0,
+      "unit": "lb",
+      "expires_in_days": 0,
+      "category": "protein",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7efba2691eb37bf15027",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7efca2691eb37bf15028",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7efda2691eb37bf15029",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7efea2691eb37bf1502a",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7effa2691eb37bf1502b",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f00a2691eb37bf1502c",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f01a2691eb37bf1502d",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f02a2691eb37bf1502e",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f03a2691eb37bf1502f",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f04a2691eb37bf15030",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f05a2691eb37bf15031",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f06a2691eb37bf15032",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f08a2691eb37bf15033",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f09a2691eb37bf15034",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f0aa2691eb37bf15035",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f0ba2691eb37bf15036",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f4156886c538144b4f3",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f4256886c538144b4f4",
+      "name": "KirSublingual B-12 5000 MCG, 300 Tablets",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8256886c538144b4f5",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8356886c538144b4f6",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8456886c538144b4f7",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8556886c538144b4f8",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8656886c538144b4f9",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8756886c538144b4fa",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8856886c538144b4fb",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8856886c538144b4fc",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8956886c538144b4fd",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8a56886c538144b4fe",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8b56886c538144b4ff",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8c56886c538144b500",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8d56886c538144b501",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf7f8e56886c538144b502",
+      "name": "Creatine Monohydrate",
+      "quantity": 0,
+      "unit": "g",
+      "expires_in_days": 0,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf804d56886c538144b503",
+      "name": "Purified water",
+      "quantity": 0,
+      "unit": "ml",
+      "expires_in_days": 0,
+      "category": "beverage",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf804e56886c538144b504",
+      "name": "Purified water",
+      "quantity": 0,
+      "unit": "ml",
+      "expires_in_days": 0,
+      "category": "beverage",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf4f6897484d3adb0978ef",
+      "name": "Chicken Breast",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 1,
+      "category": "protein",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf4f6897484d3adb0978f2",
+      "name": "Bananas",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 1,
+      "category": "produce",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf4f6897484d3adb0978f4",
+      "name": "Tomatoes",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 2,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf532e123430d2891bf15a",
+      "name": "Fresh Spinach",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 2,
+      "category": "produce",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf4f6897484d3adb0978f0",
+      "name": "Blueberries",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 3,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf532e123430d2891bf15b",
+      "name": "Chicken Breast",
+      "quantity": 0,
+      "unit": "lb",
+      "expires_in_days": 3,
+      "category": "protein",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf4f6897484d3adb0978ed",
+      "name": "Greek Yogurt",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 4,
+      "category": "dairy",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf532e123430d2891bf158",
+      "name": "Organic Bananas",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 4,
+      "category": "produce",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf532e123430d2891bf160",
+      "name": "Bread Loaf",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 4,
+      "category": "baked",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf532e123430d2891bf15c",
+      "name": "Whole Milk",
+      "quantity": 0,
+      "unit": "L",
+      "expires_in_days": 5,
+      "category": "dairy",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf532e123430d2891bf161",
+      "name": "Tomatoes",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 5,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf4f6897484d3adb0978f1",
+      "name": "Milk",
+      "quantity": 0,
+      "unit": "L",
+      "expires_in_days": 6,
+      "category": "dairy",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf532e123430d2891bf159",
+      "name": "Greek Yogurt",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 6,
+      "category": "dairy",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf532e123430d2891bf15e",
+      "name": "Carrots",
+      "quantity": 0,
+      "unit": "lb",
+      "expires_in_days": 7,
+      "category": "other",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf532e123430d2891bf15d",
+      "name": "Cheddar Cheese",
+      "quantity": 0,
+      "unit": "pieces",
+      "expires_in_days": 9,
+      "category": "dairy",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    },
+    {
+      "_id": "68cf8dc76d0b5271edc643a9",
+      "name": "Low fat oat milk",
+      "quantity": 1000.0,
+      "unit": "ml",
+      "expires_in_days": 9,
+      "category": "dairy",
+      "owner_id": "68cf4e5a0abb4e96cf39a9f4"
+    }
+  ]
+}

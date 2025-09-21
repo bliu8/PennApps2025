@@ -1,7 +1,8 @@
-import { useMemo } from 'react';
-import { StyleSheet, View, Image } from 'react-native';
+import { useMemo, useState } from 'react';
+import { StyleSheet, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Modal, Pressable } from 'react-native';
+import { CameraView, useCameraPermissions } from 'expo-camera';
 
 import { ThemedText } from '@/components/themed-text';
 import { SurfaceCard } from '@/components/ui/surface-card';
@@ -12,12 +13,16 @@ import Stats from '../../components/home/stats';
 import Alerts from '../../components/home/alerts';
 import Fridge from '../../components/home/fridge';
 import { consumeInventoryItem, deleteInventoryItem, updateInventoryQuantity } from '@/services/api';
+import { submitBarcode } from '@/services/api';
 
 export default function HomeScreen() {
   const palette = Colors.light;
   // const greeting = useGreeting();
   const { user, accessToken } = useAuthContext();
-  const params = useLocalSearchParams<{ imageUri?: string }>();
+  const [showScanner, setShowScanner] = useState(false);
+  const [permission, requestPermission] = useCameraPermissions();
+  const [scannedValue, setScannedValue] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const displayName = useMemo(() => {
     if (user?.name) return user.name.split(' ')[0];
     if (user?.email) return user.email.split('@')[0];
@@ -34,7 +39,7 @@ export default function HomeScreen() {
         <Stats />
         
         <SurfaceCard
-          onPress={() => { router.push({ pathname: '/camera', params: { returnTo: '/(tabs)' } }); }}
+          onPress={() => { if (permission?.granted) { setShowScanner(true); } else { void requestPermission().then(() => setShowScanner(true)); } }}
           style={[
             styles.uploadCard,
             styles.uploadShadow,
@@ -52,12 +57,49 @@ export default function HomeScreen() {
               <IconSymbol name="camera.fill" size={50} color={palette.tint} />
             </View>
             <ThemedText type="subtitle">Upload your food</ThemedText>
-            {typeof params.imageUri === 'string' && params.imageUri.length > 0 && (
-              <Image source={{ uri: params.imageUri }} style={{ width: 120, height: 120, borderRadius: 12 }} />
+            {scannedValue && (
+              <ThemedText style={{ marginTop: 8 }}>Scanned: {scannedValue}</ThemedText>
             )}
           </View>
         </SurfaceCard>
         
+        <Modal visible={showScanner} animationType="slide" onRequestClose={() => setShowScanner(false)}>
+          <View style={{ flex: 1, backgroundColor: 'black' }}>
+            <CameraView
+              style={StyleSheet.absoluteFill}
+              facing="back"
+              onBarcodeScanned={({ data }: any) => {
+                if (!data) return;
+                const value = String(data);
+                setScannedValue(value);
+                setShowScanner(false);
+                if (accessToken && !submitting) {
+                  setSubmitting(true);
+                  submitBarcode(accessToken, value).catch(() => {}).finally(() => setSubmitting(false));
+                }
+              }}
+              barcodeScannerSettings={{
+                barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'],
+              } as any}
+            />
+            <SafeAreaView style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 16, zIndex: 10 }}>
+              <Pressable 
+                onPress={() => setShowScanner(false)} 
+                style={({ pressed }) => [{ 
+                  width: 44, 
+                  height: 44, 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  opacity: pressed ? 0.7 : 1,
+                  backgroundColor: 'rgba(0,0,0,0.5)',
+                  borderRadius: 22
+                }]}
+              >
+                <IconSymbol name="xmark.circle.fill" size={30} color={'white'} />
+              </Pressable>
+            </SafeAreaView>
+          </View>
+        </Modal>
       </View>
     </SafeAreaView>
   );

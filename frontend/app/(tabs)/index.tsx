@@ -9,8 +9,6 @@ import { Colors } from '@/constants/theme';
 import { useAuthContext } from '@/context/AuthContext';
 import Stats from '../../components/home/stats';
 import Alerts from '../../components/home/alerts';
-import Fridge from '../../components/home/fridge';
-import { consumeInventoryItem, deleteInventoryItem, updateInventoryQuantity } from '@/services/api';
 
 export default function HomeScreen() {
   const palette = Colors.light;

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { Dimensions, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, View } from 'react-native';
+import { Dimensions, Modal, Pressable, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { SurfaceCard } from '@/components/ui/surface-card';
@@ -16,6 +16,8 @@ export function Stats() {
   const cardWidth = useMemo(() => screenWidth - horizontalPadding * 2, [screenWidth]);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<ScrollView | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   const pages = useMemo(() => {
     // Tailored to MVP personal inventory goals (no neighborhood sharing)
@@ -69,7 +71,11 @@ export function Stats() {
         contentContainerStyle={{ paddingHorizontal: 0 }}
       >
         {pages.map((m, i) => (
-          <SurfaceCard key={m.id} style={[styles.card, { width: cardWidth, marginRight: i < pages.length - 1 ? GAP : 0 }]}> 
+          <SurfaceCard
+            key={m.id}
+            onPress={() => { setSelectedId(m.id); setModalVisible(true); }}
+            style={[styles.card, { width: cardWidth, marginRight: i < pages.length - 1 ? GAP : 0 }]}
+          > 
             <View style={styles.row}>
               <IconSymbol name={m.icon} size={20} color={palette.tint} />
               <ThemedText style={[styles.metricLabel, { color: palette.subtleText }]}>{m.label}</ThemedText>
@@ -97,6 +103,20 @@ export function Stats() {
           />
         ))}
       </View>
+
+      <Modal transparent animationType="fade" visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: Colors.light.card, borderColor: Colors.light.border }]}> 
+            <ThemedText type="subtitle">More details</ThemedText>
+            <ThemedText style={{ color: Colors.light.subtleText }}>
+              Placeholder content for "{selectedId ?? 'stat'}". More information will appear here later.
+            </ThemedText>
+            <Pressable onPress={() => setModalVisible(false)} style={styles.modalCloseBtn}>
+              <ThemedText style={{ color: Colors.light.tint, fontWeight: '700' }}>Close</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -128,6 +148,32 @@ const styles = StyleSheet.create({
     width: 8,
     height: 8,
     borderRadius: 4,
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#00000066',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  modalCloseBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.light.cardMuted,
+    borderRadius: 10,
   },
 });
 

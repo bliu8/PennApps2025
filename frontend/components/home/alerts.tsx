@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { StyleSheet, View } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Modal, Pressable, StyleSheet, View } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { SurfaceCard } from '@/components/ui/surface-card';
@@ -15,6 +15,7 @@ type ExpiringItem = {
 
 export default function Alerts() {
   const palette = Colors.light;
+  const [modalVisible, setModalVisible] = useState(false);
 
   // TODO: wire to backend inventory soon; using tasteful placeholders for MVP
   function daysUntil(dateIso: string): number {
@@ -41,7 +42,11 @@ export default function Alerts() {
   }
 
   return (
-    <SurfaceCard tone="default" style={[styles.card, { backgroundColor: palette.dangerSurface, borderColor: palette.danger }]}>
+    <SurfaceCard
+      tone="default"
+      onPress={() => setModalVisible(true)}
+      style={[styles.card, { backgroundColor: palette.dangerSurface, borderColor: palette.danger }]}
+    >
       <View style={styles.headerRow}>
         <IconSymbol name="exclamationmark.triangle.fill" size={18} color={palette.danger} />
         <ThemedText type="subtitle">Expiring Soon</ThemedText>
@@ -59,6 +64,19 @@ export default function Alerts() {
           );
         })}
       </View>
+      <Modal transparent animationType="fade" visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
+        <View style={styles.modalBackdrop}>
+          <View style={[styles.modalCard, { backgroundColor: Colors.light.card, borderColor: Colors.light.border }]}> 
+            <ThemedText type="subtitle">About these alerts</ThemedText>
+            <ThemedText style={{ color: Colors.light.subtleText }}>
+              Placeholder details. We’ll show more info about what’s expiring soon here.
+            </ThemedText>
+            <Pressable onPress={() => setModalVisible(false)} style={styles.modalCloseBtn}>
+              <ThemedText style={{ color: Colors.light.tint, fontWeight: '700' }}>Close</ThemedText>
+            </Pressable>
+          </View>
+        </View>
+      </Modal>
     </SurfaceCard>
   );
 }
@@ -82,5 +100,31 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontWeight: '600',
+  },
+  modalBackdrop: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#00000066',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  modalCard: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 16,
+    gap: 8,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  modalCloseBtn: {
+    marginTop: 8,
+    alignSelf: 'flex-end',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: Colors.light.cardMuted,
+    borderRadius: 10,
   },
 });

@@ -106,6 +106,7 @@ export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
   ]);
 
   const [confirmItemId, setConfirmItemId] = useState<string | null>(null);
+  const [detailItemId, setDetailItemId] = useState<string | null>(null);
 
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -178,6 +179,10 @@ export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
     setConfirmItemId(itemId);
   }
 
+  function openDetails(itemId: string) {
+    setDetailItemId(itemId);
+  }
+
   function renderItem({ item }: { item: InventoryItem }) {
     const days = daysUntil(item.est_expiry_date);
     const isExpired = days < 0;
@@ -191,7 +196,7 @@ export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
     const badgeBackground = urgency === 'normal' ? Colors.light.cardMuted : `${badgeColor}22`;
     const badgeBorder = urgency === 'normal' ? Colors.light.border : `${badgeColor}55`;
     return (
-      <SurfaceCard style={styles.card}>
+      <SurfaceCard style={styles.card} onPress={() => openDetails(item.id)}>
         <View style={styles.rowBetween}>
           <View style={{ flex: 1 }}>
             <ThemedText type="subtitle">{item.name}</ThemedText>
@@ -202,7 +207,9 @@ export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
           </View>
         </View>
 
-        <View style={styles.controlsRow}>
+        <ThemedText style={[styles.placeholderText, styles.subtle]}> Placeholder | quick notes here </ThemedText>
+
+     <View style={styles.controlsRow}>
           <View style={styles.quantityGroup}>
             <IconButton name="minus.circle" onPress={() => handleDecrement(item.id)} />
             <View style={styles.quantityValueBox}>
@@ -260,6 +267,26 @@ export function Fridge({ onEditQuantity, onConsume, onDelete }: FridgeProps) {
           </View>
         </Modal>
       )}
+      {detailItemId && (
+        <Modal transparent animationType="fade" visible={!!detailItemId} onRequestClose={() => setDetailItemId(null)}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Pressable onPress={() => setDetailItemId(null)} hitSlop={10} style={({ pressed }) => [styles.modalClose, pressed ? { opacity: 0.75 } : undefined]}> 
+                <IconSymbol name="xmark" size={18} color={Colors.light.icon} />
+              </Pressable>
+              {(() => {
+                const detail = items.find((i) => i.id === detailItemId);
+                return (
+                  <>
+                    <ThemedText type="subtitle">{detail?.name ?? 'Item'}</ThemedText>
+                    <ThemedText style={styles.modalText}>Placeholder info</ThemedText>
+                  </>
+                );
+              })()}
+            </View>
+          </View>
+        </Modal>
+      )}
     </View>
   );
 }
@@ -282,7 +309,6 @@ function ActionIcon({ name, onPress }: { name: string; onPress: () => void }) {
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
     flex: 1,
   },
   header: {
@@ -295,10 +321,13 @@ const styles = StyleSheet.create({
   },
   listContent: {
     gap: 12,
-    paddingBottom: 8,
+    paddingBottom: 0,
   },
   card: {
     gap: 12,
+  },
+  placeholderText: {
+    fontSize: 12,
   },
   rowBetween: {
     flexDirection: 'row',

@@ -2,8 +2,8 @@ import { StyleSheet, View, Pressable, TextInput } from 'react-native';
 import { Stack } from 'expo-router';
 
 import { ThemedText } from '@/components/themed-text';
-import { SurfaceCard } from '@/components/ui/surface-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
+import { SurfaceCard } from '@/components/ui/surface-card';
 import { Colors } from '@/constants/theme';
 import { useAuthContext } from '@/context/AuthContext';
 import { BackButton } from '@/components/ui/back-button';
@@ -15,15 +15,18 @@ export default function SettingsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: palette.background }]}> 
-      <Stack.Screen options={{ title: '', headerLeft: () => <BackButton /> }} />
-      <View style={styles.content}>
-        <SurfaceCard tone="highlight" style={{ gap: 12 }}>
-          <View style={styles.headerRow}>
-            <View style={styles.avatar}>
-              <IconSymbol name="person.fill" size={28} color={palette.tint} />
-            </View>
-            <ThemedText type="subtitle">Settings</ThemedText>
-          </View>
+      <Stack.Screen
+        options={{
+          title: '',
+          headerLeft: () => <BackButton />,
+          headerTitle: () => (
+            <ThemedText type="subtitle" style={{ fontWeight: '700' }}>Settings</ThemedText>
+          ),
+          headerShadowVisible: false,
+        }}
+      />
+      <View style={[styles.content, { paddingTop: 4 }]}> 
+        <SurfaceCard tone="default" style={{ gap: 16 }}>
           <View style={styles.inputGroup}>
             <ThemedText style={styles.label}>Display name</ThemedText>
             <TextInput
@@ -32,26 +35,38 @@ export default function SettingsScreen() {
               placeholder="Your name"
               style={[styles.input, { borderColor: palette.border, color: palette.text }]}
               placeholderTextColor={palette.subtleText}
+              autoCapitalize="words"
+              autoCorrect={false}
             />
           </View>
           <View style={styles.inputGroup}>
-            <ThemedText style={styles.label}>Dietary preference (placeholder)</ThemedText>
-            <View style={styles.pillRow}>
-              <Pill label="None" selected />
-              <Pill label="Vegetarian" />
-              <Pill label="Vegan" />
-              <Pill label="Halal" />
-            </View>
+            <ThemedText style={styles.label}>Dietary restrictions</ThemedText>
+            <TextInput
+              placeholder="e.g., vegetarian; no nuts"
+              style={[styles.input, { borderColor: palette.border, color: palette.text }]}
+              placeholderTextColor={palette.subtleText}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
           </View>
+          <ThemedText style={[styles.placeholder, { color: palette.subtleText }]}>Placeholders shown here match the card.</ThemedText>
         </SurfaceCard>
 
-        <SurfaceCard tone="default" style={{ gap: 12 }}>
-          <ThemedText type="subtitle">Account</ThemedText>
-          <Pressable style={styles.row} onPress={() => { void logout(); }}>
-            <IconSymbol name="clock.arrow.circlepath" size={18} color={palette.tint} />
-            <ThemedText>Log out</ThemedText>
+        <SurfaceCard onPress={() => { /* open modal from below row as well */ }} tone="highlight" style={{ gap: 12 }}>
+          <ThemedText type="subtitle">More info</ThemedText>
+          <ThemedText style={{ color: palette.subtleText }}>Open the details modal to learn about guidelines.</ThemedText>
+          <Pressable style={styles.linkRow} onPress={() => { /* replaced below by router link */ }}>
+            <IconSymbol name="sparkles" size={18} color={palette.success} />
+            <ThemedText>Open modal</ThemedText>
           </Pressable>
         </SurfaceCard>
+
+        <Pressable style={styles.row} onPress={() => { void logout(); }}>
+          <View style={styles.rowIconWrap}>
+            <IconSymbol name="rectangle.portrait.and.arrow.right" size={18} color={palette.tint} />
+          </View>
+          <ThemedText>Log out</ThemedText>
+        </Pressable>
       </View>
     </View>
   );
@@ -67,30 +82,28 @@ const styles = StyleSheet.create({
     paddingBottom: 32,
     gap: 16,
   },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  avatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: Colors.light.cardMuted,
-  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
     paddingVertical: 10,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: Colors.light.border,
+  },
+  rowIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.light.cardMuted,
   },
   inputGroup: {
     gap: 8,
   },
   label: {
-    color: Colors.light.subtleText,
+    color: Colors.light.text,
   },
   input: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -98,30 +111,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
-  pillRow: {
+  sectionDivider: {
+    height: 8,
+  },
+  placeholder: {
+    fontSize: 12,
+  },
+  linkRow: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
+    alignItems: 'center',
     gap: 8,
-  },
-});
-
-function Pill({ label, selected = false }: { label: string; selected?: boolean }) {
-  return (
-    <View style={[pillStyles.pill, { backgroundColor: selected ? Colors.light.cardHighlight : Colors.light.cardMuted, borderColor: Colors.light.border }]}> 
-      <ThemedText style={[pillStyles.pillText]}>{label}</ThemedText>
-    </View>
-  );
-}
-
-const pillStyles = StyleSheet.create({
-  pill: {
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 999,
-    borderWidth: StyleSheet.hairlineWidth,
-  },
-  pillText: {
-    fontWeight: '600',
   },
 });
 

@@ -9,6 +9,7 @@ import { SurfaceCard } from '@/components/ui/surface-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import { useAuthContext } from '@/context/AuthContext';
+import { useInventoryRefresh } from '@/context/InventoryRefreshContext';
 import Stats from '../../components/home/stats';
 import Alerts from '../../components/home/alerts';
 import Fridge from '../../components/home/fridge';
@@ -18,6 +19,7 @@ export default function HomeScreen() {
   const palette = Colors.light;
   // const greeting = useGreeting();
   const { user, accessToken } = useAuthContext();
+  const { triggerRefresh } = useInventoryRefresh();
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [scannedValue, setScannedValue] = useState<string | null>(null);
@@ -47,7 +49,53 @@ export default function HomeScreen() {
         </View>
         <Alerts />
         <Stats />
-        
+
+        <Fridge
+          accessToken={accessToken || undefined}
+          onConsume={async (itemId: string, quantityDelta: number, reason: 'used' | 'discarded') => {
+            if (!accessToken) {
+              console.error('No access token available');
+              return;
+            }
+            try {
+              await consumeInventoryItem(accessToken, itemId, quantityDelta, reason);
+              console.log(`Consumed item ${itemId}: ${quantityDelta} ${reason}`);
+              triggerRefresh();
+            } catch (error) {
+              console.error('Failed to consume item:', error);
+              throw error;
+            }
+          }}
+          onEditQuantity={async (itemId: string, newQuantity: number) => {
+            if (!accessToken) {
+              console.error('No access token available');
+              return;
+            }
+            try {
+              await updateInventoryQuantity(accessToken, itemId, newQuantity);
+              console.log(`Updated item ${itemId} quantity to ${newQuantity}`);
+              triggerRefresh();
+            } catch (error) {
+              console.error('Failed to update quantity:', error);
+              throw error;
+            }
+          }}
+          onDelete={async (itemId: string) => {
+            if (!accessToken) {
+              console.error('No access token available');
+              return;
+            }
+            try {
+              await deleteInventoryItem(accessToken, itemId);
+              console.log(`Deleted item ${itemId}`);
+              triggerRefresh();
+            } catch (error) {
+              console.error('Failed to delete item:', error);
+              throw error;
+            }
+          }}
+        />
+
         <SurfaceCard
           onPress={() => { 
             if (permission?.granted) { 
@@ -213,6 +261,7 @@ export default function HomeScreen() {
                         }
                         console.log('All items processed successfully');
                         setScannedItems([]);
+                        triggerRefresh();
                       } catch (e) {
                         console.error('Failed to process items:', e);
                       } finally {

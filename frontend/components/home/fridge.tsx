@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, FlatList, Pressable, StyleSheet, View, Animated } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState, useCallback } from 'react';
+import { Modal, FlatList, Pressable, StyleSheet, View, Animated, ActivityIndicator } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { SurfaceCard } from '@/components/ui/surface-card';
@@ -7,19 +7,11 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import Recipes from '../fridge/recipes';
 import { sampleRecipes } from '@/constants/mock-data';
+import { fetchInventoryItems, InventoryItem as APIInventoryItem } from '@/services/api';
+import { useInventoryRefresh } from '@/context/InventoryRefreshContext';
 
-// TODO: make sure that this data makes sense
-type InventoryItem = {
-  id: string;
-  name: string;
-  quantity: number;
-//   NOTE: base unit and display unit may differ? This can change
-  baseUnit: 'g' | 'kg' | 'oz' | 'lb' | 'ml' | 'L' | 'pieces';
-  displayUnit?: string; // e.g., 'tub', 'carton', 'clamshell'
-  unitsPerDisplay?: number; // how many base units per display unit
-  input_date: string; // ISO
-  est_expiry_date: string; // ISO
-};
+// Use the API type directly
+type InventoryItem = APIInventoryItem;
 
 type ConsumeReason = 'used' | 'discarded';
 
@@ -160,64 +152,47 @@ function AnimatedInventoryItem({
 
 export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: FridgeProps) {
   const palette = Colors.light;
+  const { addRefreshListener } = useInventoryRefresh();
 
-  // TODO remove placeholder data
-  const [items, setItems] = useState<InventoryItem[]>([
-    {
-      id: 'it-1',
-      name: 'Spinach',
-      quantity: 1,
-      baseUnit: 'pieces',
-      displayUnit: 'bag',
-      unitsPerDisplay: 1,
-      input_date: new Date(Date.now() - 2*86400000).toISOString(),
-      est_expiry_date: new Date(Date.now() + 0*86400000).toISOString(),
-    },
-    {
-      id: 'it-2',
-      name: 'Greek yogurt',
-      quantity: 3,
-      baseUnit: 'pieces',
-      displayUnit: 'tub',
-      unitsPerDisplay: 1,
-      input_date: new Date(Date.now() - 3*86400000).toISOString(),
-      est_expiry_date: new Date(Date.now() + 1*86400000).toISOString(),
-    },
-    {
-      id: 'it-3',
-      name: 'Chicken broth',
-      quantity: 1,
-      baseUnit: 'L',
-      displayUnit: 'carton',
-      unitsPerDisplay: 1,
-      input_date: new Date(Date.now() - 1*86400000).toISOString(),
-      est_expiry_date: new Date(Date.now() + 4*86400000).toISOString(),
-    },
-    {
-      id: 'it-4',
-      name: 'Blueberries',
-      quantity: 2,
-      baseUnit: 'pieces',
-      displayUnit: 'container',
-      unitsPerDisplay: 1,
-      input_date: new Date(Date.now() - 1*86400000).toISOString(),
-      est_expiry_date: new Date(Date.now() + 2*86400000).toISOString(),
-    },
-    {
-      id: 'it-5',
-      name: 'Avocado',
-      quantity: 1,
-      baseUnit: 'pieces',
-      displayUnit: 'avocado',
-      unitsPerDisplay: 1,
-      input_date: new Date(Date.now() - 6*86400000).toISOString(),
-      est_expiry_date: new Date(Date.now() - 2*86400000).toISOString(),
-    },
-  ]);
-
+  const [items, setItems] = useState<InventoryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [confirmItemId, setConfirmItemId] = useState<string | null>(null);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [animatingItems, setAnimatingItems] = useState<Set<string>>(new Set());
+
+  const fetchItems = useCallback(async () => {
+    if (!accessToken) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      console.log('Fetching inventory items...');
+      const response = await fetchInventoryItems(accessToken);
+      console.log('Fetched inventory items:', response.items);
+      setItems(response.items);
+    } catch (err) {
+      console.error('Failed to fetch inventory items:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load inventory');
+      setItems([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [accessToken]);
+
+  useEffect(() => {
+    fetchItems();
+  }, [fetchItems]);
+
+  // Listen for inventory refresh events
+  useEffect(() => {
+    const removeListener = addRefreshListener(fetchItems);
+    return removeListener;
+  }, [addRefreshListener, fetchItems]);
 
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -232,16 +207,24 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
   }
 
   async function handleIncrement(itemId: string) {
+    console.log('Incrementing item:', itemId);
     const target = items.find((i) => i.id === itemId);
-    if (!target) return;
+    if (!target) {
+      console.error('Item not found for increment:', itemId);
+      return;
+    }
     const newQty = target.quantity + 1;
     updateQuantityLocal(itemId, newQty);
     try { await onEditQuantity?.(itemId, newQty); } catch {}
   }
 
   async function handleDecrement(itemId: string) {
+    console.log('Decrementing item:', itemId);
     const target = items.find((i) => i.id === itemId);
-    if (!target) return;
+    if (!target) {
+      console.error('Item not found for decrement:', itemId);
+      return;
+    }
     // If going from 1 to 0, treat as discard to capture reason
     if (target.quantity === 1) {
       openConfirm(itemId);
@@ -304,6 +287,32 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
         onConfirm={openConfirm}
         isAnimating={isAnimating}
       />
+    );
+  }
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={Colors.light.tint} />
+          <ThemedText style={styles.loadingText}>Loading your fridge...</ThemedText>
+        </View>
+      </View>
+    );
+  }
+
+  if (error) {
+    return (
+      <View style={styles.container}>
+        <SurfaceCard style={styles.errorCard}>
+          <IconSymbol name="exclamationmark.triangle.fill" size={24} color={Colors.light.danger} />
+          <ThemedText style={styles.errorText}>Failed to load inventory</ThemedText>
+          <ThemedText style={styles.errorSubtext}>{error}</ThemedText>
+          <Pressable onPress={fetchItems} style={styles.retryButton}>
+            <ThemedText style={styles.retryButtonText}>Try Again</ThemedText>
+          </Pressable>
+        </SurfaceCard>
+      </View>
     );
   }
 
@@ -565,6 +574,45 @@ const styles = StyleSheet.create({
   },
   modalDiscard: {
     backgroundColor: Colors.light.dangerSurface,
+  },
+  loadingContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 16,
+    paddingVertical: 40,
+  },
+  loadingText: {
+    color: Colors.light.subtleText,
+    fontSize: 16,
+  },
+  errorCard: {
+    alignItems: 'center',
+    gap: 12,
+    padding: 20,
+    marginVertical: 20,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: Colors.light.danger,
+    textAlign: 'center',
+  },
+  errorSubtext: {
+    fontSize: 14,
+    color: Colors.light.subtleText,
+    textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: Colors.light.tint,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  retryButtonText: {
+    color: 'white',
+    fontWeight: '600',
   },
 });
 

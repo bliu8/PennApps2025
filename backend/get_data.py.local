@@ -1,0 +1,261 @@
+#!/usr/bin/env python3
+
+"""Utility to pull data from the project's MongoDB and export to files or pandas DataFrames.
+
+This script intentionally re-uses the project's DB helpers so it honors `MONGODB_URI` and
+`MONGODB_DB_NAME` from your environment or `.env`.
+
+Examples:
+  # Export postings and scans to ./exports as NDJSON
+  python backend/get_data.py --collections postings,scans --out-dir ./exports --format ndjson
+
+  # Export all collections to ./exports as JSON arrays
+  python backend/get_data.py --all --out-dir ./exports --format json
+
+If pandas is installed, use --to-csv to also write CSV versions of exported collections.
+"""
+
+import argparse
+import asyncio
+from pathlib import Path
+import json
+from typing import List
+from datetime import datetime, timezone, timedelta
+
+from dotenv import load_dotenv
+
+load_dotenv()
+
+N_DAYS_DEFAULT = 7
+EXPORT_DIR = "./exports"
+
+def _bson_to_json_compatible(doc: dict) -> dict:
+    """Convert BSON types in a document to JSON-serializable types.
+
+    Uses the simplest conversion: ObjectId -> str, datetime -> isoformat. If you need
+    richer BSON output use bson.json_util in downstream tooling.
+    """
+    from bson import ObjectId
+    from datetime import datetime
+
+    out = {}
+    for k, v in doc.items():
+        if isinstance(v, ObjectId):
+            out[k] = str(v)
+        elif isinstance(v, datetime):
+            out[k] = v.isoformat()
+        else:
+            # leave nested structures as-is; json.dumps will error if they contain BSON types
+            out[k] = v
+    return out
+
+
+async def export_collections(collections: List[str], out_dir: Path, fmt: str = "ndjson", to_csv: bool = False):
+    from app.database import connect_to_mongo, close_mongo_connection, get_database
+
+    await connect_to_mongo()
+    try:
+        db = get_database()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Clean existing files in the out_dir so this mode produces exactly one output file
+        existing = list(out_dir.iterdir())
+        if existing:
+            print(f"Cleaning {len(existing)} existing files in {out_dir} to produce a single output file...")
+            for p in existing:
+                try:
+                    if p.is_file():
+                        p.unlink()
+                except Exception:
+                    # non-fatal; continue
+                    pass
+
+        # Determine collections to export
+        if not collections:
+            collections = await db.list_collection_names()
+
+        for coll_name in collections:
+            coll = db[coll_name]
+            docs = []
+            cursor = coll.find({})
+            async for doc in cursor:
+                docs.append(_bson_to_json_compatible(doc))
+
+            if fmt == "ndjson":
+                path = out_dir / f"{coll_name}.ndjson"
+                with path.open("w", encoding="utf-8") as f:
+                    for doc in docs:
+                        f.write(json.dumps(doc) + "\n")
+                print(f"Wrote {len(docs)} documents to {path}")
+            else:  # json array
+                path = out_dir / f"{coll_name}.json"
+                with path.open("w", encoding="utf-8") as f:
+                    json.dump(docs, f, indent=2)
+                print(f"Wrote {len(docs)} documents to {path}")
+
+            if to_csv:
+                try:
+                    import pandas as pd
+                except Exception:
+                    print("pandas not available; skipping CSV export")
+                else:
+                    df = pd.DataFrame(docs)
+                    csv_path = out_dir / f"{coll_name}.csv"
+                    df.to_csv(csv_path, index=False)
+                    print(f"Wrote CSV to {csv_path}")
+
+    finally:
+        await close_mongo_connection()
+
+
+async def export_expiring_items(days: int, out_dir: Path):
+    """Find inventory items whose est_expiry_date is within the next `days` days."""
+    from app.database import connect_to_mongo, close_mongo_connection, get_database
+    await connect_to_mongo()
+    try:
+        db = get_database()
+        out_dir.mkdir(parents=True, exist_ok=True)
+
+        # Use naive UTC datetimes for comparison to match how Mongo stores dates
+        now = datetime.utcnow()
+        # print(now)
+        cutoff = now + timedelta(days=days)
+
+        coll = db["inventory_items"]
+        # get documents that have an est_expiry_date and are active; do the date-window filtering in Python
+        cursor = coll.find({
+            "est_expiry_date": {"$exists": True},
+            "status": "active"
+        })
+
+        docs = []
+        # Attempt to use dateutil.parser if available for parsing string dates
+        try:
+            from dateutil.parser import parse as parse_date
+        except Exception:
+            parse_date = None
+
+        async for doc in cursor:
+            est = doc.get("est_expiry_date")
+            est_dt = None
+
+            if est is None:
+                continue
+
+            # If already a datetime, normalize to naive UTC
+            if isinstance(est, datetime):
+                if est.tzinfo is not None:
+                    # convert to UTC then drop tzinfo
+                    est_dt = est.astimezone(timezone.utc).replace(tzinfo=None)
+                else:
+                    est_dt = est
+
+            else:
+                # Try to parse strings
+                if isinstance(est, str):
+                    if parse_date:
+                        try:
+                            est_dt = parse_date(est)
+                            if est_dt.tzinfo is not None:
+                                est_dt = est_dt.astimezone(timezone.utc).replace(tzinfo=None)
+                        except Exception:
+                            est_dt = None
+                    else:
+                        # try fromisoformat as a fallback
+                        try:
+                            est_dt = datetime.fromisoformat(est)
+                            if est_dt.tzinfo is not None:
+                                est_dt = est_dt.astimezone(timezone.utc).replace(tzinfo=None)
+                        except Exception:
+                            est_dt = None
+
+            if est_dt is None:
+                # could not parse expiry date; skip
+                continue
+
+            # Compare using naive UTC datetimes
+            if now <= est_dt <= cutoff:
+                # Select and normalize only the fields requested by the user
+                out_doc = {}
+                out_doc["_id"] = str(doc.get("_id"))
+                out_doc["name"] = doc.get("name")
+                out_doc["quantity"] = doc.get("quantity")
+                out_doc["base_unit"] = doc.get("base_unit")
+                out_doc["display_unit"] = doc.get("display_unit")
+                out_doc["units_per_display"] = doc.get("units_per_display")
+
+                # Normalize dates to ISO
+                inp = doc.get("input_date")
+                if isinstance(inp, datetime):
+                    out_doc["input_date"] = inp.isoformat()
+                else:
+                    out_doc["input_date"] = str(inp) if inp is not None else None
+
+                if isinstance(est, datetime):
+                    out_doc["est_expiry_date"] = est.isoformat()
+                else:
+                    out_doc["est_expiry_date"] = str(est)
+
+                out_doc["cost_estimate"] = doc.get("cost_estimate")
+                out_doc["status"] = doc.get("status")
+                out_doc["remaining_quantity"] = doc.get("remaining_quantity")
+                owner = doc.get("owner_id")
+                out_doc["owner_id"] = str(owner) if owner is not None else None
+
+                docs.append(out_doc)
+
+        # Write one JSON array file as requested
+        path = out_dir / f"inventory_items_expiring_in_{days}d.json"
+        with path.open("w", encoding="utf-8") as f:
+            json.dump(docs, f, indent=2)
+
+        print(f"Found {len(docs)} inventory items expiring within {days} days. Wrote to {path}")
+        return docs
+
+    finally:
+        await close_mongo_connection()
+
+
+# def parse_args():
+#     p = argparse.ArgumentParser(description="Export MongoDB collections to files or DataFrames")
+#     p.add_argument("--collections", type=str, help="Comma-separated list of collections to export")
+#     p.add_argument("--all", action="store_true", help="Export all collections")
+#     p.add_argument("--out-dir", type=str, default="./exports", help="Output directory")
+#     p.add_argument("--format", type=str, choices=["ndjson", "json"], default="ndjson", help="Output format")
+#     p.add_argument("--to-csv", action="store_true", help="Also write CSV using pandas if available")
+#     p.add_argument("--expiring-days", type=int, default=0, help="Export inventory items expiring within N days (overrides collections/all)")
+#     return p.parse_args()
+
+
+def main():
+    # args = parse_args()
+    # out_dir = Path(args.out_dir)
+    # Default behavior: export all collections if nothing is specified.
+    # If user asked for expiring-items mode, run that and exit
+    # if args.expiring_days and args.expiring_days > 0:
+    #     try:
+    #         asyncio.run(export_expiring_items(args.expiring_days, out_dir))
+    #         return
+    #     except Exception as e:
+    #         print(f"Error during expiring-items export: {e}")
+    #         import traceback
+    #         traceback.print_exc()
+    # # Otherwise run the general exporter only if explicit flags provided
+    # if args.all:
+    #     collections = []  # empty -> handler will expand to all
+    # elif args.collections:
+    #     collections = [c.strip() for c in args.collections.split(",") if c.strip()]
+    # else:
+    #     raise SystemExit("No mode specified. Use --expiring-days N or --collections/--all to export data.")
+
+    # try:
+    #     asyncio.run(export_collections(collections, out_dir, fmt=args.format, to_csv=args.to_csv))
+    # except Exception as e:
+    #     print(f"Error during export: {e}")
+    #     import traceback
+    #     traceback.print_exc()
+    asyncio.run(export_expiring_items(N_DAYS_DEFAULT, out_dir=Path(EXPORT_DIR)))
+
+
+if __name__ == "__main__":
+    main()

@@ -1,16 +1,10 @@
-import React, { useMemo, useState, useEffect, useCallback, useRef } from 'react';
-import { Modal, FlatList, Pressable, StyleSheet, View, RefreshControl, Animated } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import * as Haptics from 'expo-haptics';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, FlatList, Pressable, StyleSheet, View, Animated } from 'react-native';
 
 import { ThemedText } from '@/components/themed-text';
 import { SurfaceCard } from '@/components/ui/surface-card';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
-import { API_BASE_URL } from '@/utils/env';
-import { useInventoryRefresh } from '@/context/InventoryRefreshContext';
-import Recipes from '../fridge/recipes';
-import { sampleRecipes } from '@/constants/mock-data';
 
 // TODO: make sure that this data makes sense
 type InventoryItem = {
@@ -58,7 +52,7 @@ function capitalize(label: string): string {
 // Animated button component for satisfying press feedback
 function AnimatedIconButton({ name, onPress, style, children, ...props }: any) {
   const scaleAnim = useRef(new Animated.Value(1)).current;
-  
+
   const handlePressIn = () => {
     Animated.spring(scaleAnim, {
       toValue: 0.85,
@@ -67,7 +61,7 @@ function AnimatedIconButton({ name, onPress, style, children, ...props }: any) {
       friction: 10,
     }).start();
   };
-  
+
   const handlePressOut = () => {
     Animated.spring(scaleAnim, {
       toValue: 1,
@@ -76,7 +70,7 @@ function AnimatedIconButton({ name, onPress, style, children, ...props }: any) {
       friction: 10,
     }).start();
   };
-  
+
   return (
     <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
       <Pressable
@@ -92,20 +86,22 @@ function AnimatedIconButton({ name, onPress, style, children, ...props }: any) {
   );
 }
 
-// Animated item component that can use hooks
+// Animated item wrapper for fade-out on removal
 function AnimatedInventoryItem({ 
   item, 
-  onDecrement, 
+  onDecrement,
+  onIncrement, 
   onConfirm,
   isAnimating = false
 }: { 
   item: InventoryItem; 
   onDecrement: (id: string) => void;
+  onIncrement: (id: string) => void;
   onConfirm: (id: string) => void;
   isAnimating?: boolean;
 }) {
   const fadeAnim = useRef(new Animated.Value(1)).current;
-  
+
   const days = daysUntil(item.est_expiry_date);
   const isExpired = days < 0;
   const urgency = days === 0 ? 'today' : days === 1 ? 'tomorrow' : days <= 2 && days > 1 ? 'soon' : isExpired ? 'expired' : 'normal';
@@ -117,8 +113,7 @@ function AnimatedInventoryItem({
       : Colors.light.tabIconDefault;
   const badgeBackground = urgency === 'normal' ? Colors.light.cardMuted : `${badgeColor}22`;
   const badgeBorder = urgency === 'normal' ? Colors.light.border : `${badgeColor}55`;
-  
-  // Trigger fade out animation when item is marked for removal
+
   useEffect(() => {
     if (isAnimating) {
       Animated.timing(fadeAnim, {
@@ -128,7 +123,7 @@ function AnimatedInventoryItem({
       }).start();
     }
   }, [isAnimating, fadeAnim]);
-  
+
   return (
     <Animated.View style={{ opacity: fadeAnim }}>
       <SurfaceCard style={styles.card}>
@@ -144,7 +139,6 @@ function AnimatedInventoryItem({
 
         <View style={styles.controlsRow}>
           <View style={styles.quantityGroup}>
-            <AnimatedIconButton name="minus.circle" onPress={() => onDecrement(item.id)} />
             <View style={styles.quantityValueBox}>
               <ThemedText type="title" style={styles.quantityText}>{item.quantity}</ThemedText>
             </View>
@@ -152,7 +146,8 @@ function AnimatedInventoryItem({
           </View>
 
           <View style={styles.actionsGroup}>
-            {/* Single remove icon opens confirmation to choose Used vs Discarded */}
+            <AnimatedIconButton name="minus.circle" onPress={() => onDecrement(item.id)} />
+            <AnimatedIconButton name="plus.circle" onPress={() => onIncrement(item.id)} />
             <AnimatedIconButton name="trash.fill" onPress={() => onConfirm(item.id)} />
           </View>
         </View>
@@ -163,63 +158,64 @@ function AnimatedInventoryItem({
 
 export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: FridgeProps) {
   const palette = Colors.light;
-  const { triggerRefresh } = useInventoryRefresh();
 
-  const [items, setItems] = useState<InventoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
-  const [animatingItems, setAnimatingItems] = useState<Set<string>>(new Set());
-
-  // Fetch real inventory data from API
-  const fetchInventory = async () => {
-    if (!accessToken) {
-      setLoading(false);
-      return;
-    }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/inventory`, {
-        headers: {
-          'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-        },
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      setItems(data.items || []);
-    } catch (error) {
-      console.error('Error fetching inventory:', error);
-      // Fallback to empty array on error
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Fetch inventory when component mounts or accessToken changes
-  useEffect(() => {
-    fetchInventory();
-  }, [accessToken]);
-
-  // Refresh inventory when user performs actions
-  const refreshInventory = useCallback(async () => {
-    setRefreshing(true);
-    await fetchInventory();
-    setRefreshing(false);
-  }, []);
-
-  // Refresh inventory when screen comes into focus
-  useFocusEffect(
-    useCallback(() => {
-      fetchInventory();
-    }, [])
-  );
+  // TODO remove placeholder data
+  const [items, setItems] = useState<InventoryItem[]>([
+    {
+      id: 'it-1',
+      name: 'Spinach',
+      quantity: 1,
+      baseUnit: 'pieces',
+      displayUnit: 'bag',
+      unitsPerDisplay: 1,
+      input_date: new Date(Date.now() - 2*86400000).toISOString(),
+      est_expiry_date: new Date(Date.now() + 0*86400000).toISOString(),
+    },
+    {
+      id: 'it-2',
+      name: 'Greek yogurt',
+      quantity: 3,
+      baseUnit: 'pieces',
+      displayUnit: 'tub',
+      unitsPerDisplay: 1,
+      input_date: new Date(Date.now() - 3*86400000).toISOString(),
+      est_expiry_date: new Date(Date.now() + 1*86400000).toISOString(),
+    },
+    {
+      id: 'it-3',
+      name: 'Chicken broth',
+      quantity: 1,
+      baseUnit: 'L',
+      displayUnit: 'carton',
+      unitsPerDisplay: 1,
+      input_date: new Date(Date.now() - 1*86400000).toISOString(),
+      est_expiry_date: new Date(Date.now() + 4*86400000).toISOString(),
+    },
+    {
+      id: 'it-4',
+      name: 'Blueberries',
+      quantity: 2,
+      baseUnit: 'pieces',
+      displayUnit: 'container',
+      unitsPerDisplay: 1,
+      input_date: new Date(Date.now() - 1*86400000).toISOString(),
+      est_expiry_date: new Date(Date.now() + 2*86400000).toISOString(),
+    },
+    {
+      id: 'it-5',
+      name: 'Avocado',
+      quantity: 1,
+      baseUnit: 'pieces',
+      displayUnit: 'avocado',
+      unitsPerDisplay: 1,
+      input_date: new Date(Date.now() - 6*86400000).toISOString(),
+      est_expiry_date: new Date(Date.now() - 2*86400000).toISOString(),
+    },
+  ]);
 
   const [confirmItemId, setConfirmItemId] = useState<string | null>(null);
+  const [detailItemId, setDetailItemId] = useState<string | null>(null);
+  const [animatingItems, setAnimatingItems] = useState<Set<string>>(new Set());
 
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -233,191 +229,67 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
     setItems((prev) => prev.map((it) => (it.id === itemId ? { ...it, quantity: Math.max(0, newQuantity) } : it)));
   }
 
+  async function handleIncrement(itemId: string) {
+    const target = items.find((i) => i.id === itemId);
+    if (!target) return;
+    const newQty = target.quantity + 1;
+    updateQuantityLocal(itemId, newQty);
+    try { await onEditQuantity?.(itemId, newQty); } catch {}
+  }
 
   async function handleDecrement(itemId: string) {
     const target = items.find((i) => i.id === itemId);
     if (!target) return;
-    
-    // Add satisfying haptic feedback like Duolingo
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+    // If going from 1 to 0, treat as discard to capture reason
+    if (target.quantity === 1) {
+      openConfirm(itemId);
+      return;
+    }
     const newQty = Math.max(0, target.quantity - 1);
     updateQuantityLocal(itemId, newQty);
-    
-    try { 
-      // Always consume 1 item when decrementing (treat as "used")
-      await onConsume?.(itemId, 1, 'used');
-      
-      // If quantity reaches 0, animate item out
-      if (newQty === 0) {
-        // Add to animating items for fade out
-        setAnimatingItems(prev => new Set(prev).add(itemId));
-        
-        // Extra satisfying haptic when item is completely used up
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        
-        // Delay removal to allow animation to complete
-        setTimeout(() => {
-          setItems((prev) => prev.filter((i) => i.id !== itemId));
-          setAnimatingItems(prev => {
-            const newSet = new Set(prev);
-            newSet.delete(itemId);
-            return newSet;
-          });
-        }, 300);
-      }
-      
-      // Refresh inventory to get latest data from server
-      refreshInventory();
-      // Notify other components of inventory change
-      triggerRefresh();
-    } catch (error) {
-      console.error('Error decrementing item:', error);
-    }
-  }
-
-  async function handleUse(itemId: string) {
-    const target = items.find((i) => i.id === itemId);
-    if (!target) return;
-    
-    // Satisfying haptic feedback
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
-    const delta = target.quantity; // Use all remaining quantity
-    updateQuantityLocal(itemId, 0);
-    
-    // Add to animating items for fade out
-    setAnimatingItems(prev => new Set(prev).add(itemId));
-    
-    try { 
-      await onConsume?.(itemId, delta, 'used');
-      // Success haptic when item is used up
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // Delay removal to allow animation to complete
-      setTimeout(() => {
-        setItems((prev) => prev.filter((i) => i.id !== itemId));
-        setAnimatingItems(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(itemId);
-          return newSet;
-        });
-      }, 300);
-      
-      // Refresh inventory to get latest data from server
-      refreshInventory();
-      // Notify other components of inventory change
-      triggerRefresh();
-    } catch (error) {
-      console.error('Error using item:', error);
-    }
+    try { await onEditQuantity?.(itemId, newQty); } catch {}
   }
 
   async function handleUseAll(itemId: string) {
     const target = items.find((i) => i.id === itemId);
     if (!target) return;
-    
-    // Satisfying haptic feedback
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
     const delta = target.quantity;
     updateQuantityLocal(itemId, 0);
-    
-    // Add to animating items for fade out
+    try { await onConsume?.(itemId, delta, 'used'); } catch {}
     setAnimatingItems(prev => new Set(prev).add(itemId));
-    
-    try { 
-      await onConsume?.(itemId, delta, 'used');
-      // Success haptic when item is used up
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // Delay removal to allow animation to complete
-      setTimeout(() => {
-        setItems((prev) => prev.filter((i) => i.id !== itemId));
-        setAnimatingItems(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(itemId);
-          return newSet;
-        });
-      }, 300);
-      
-      // Refresh inventory to get latest data from server
-      refreshInventory();
-      // Notify other components of inventory change
-      triggerRefresh();
-    } catch (error) {
-      console.error('Error using all items:', error);
-    }
+    setTimeout(() => {
+      setItems((prev) => prev.filter((i) => i.id !== itemId));
+      setAnimatingItems(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }, 300);
   }
 
   async function handleDiscard(itemId: string) {
     const target = items.find((i) => i.id === itemId);
     if (!target) return;
-    
-    // Different haptic for discard (warning feel)
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
     const delta = target.quantity; // discard remaining
     updateQuantityLocal(itemId, 0);
-    
-    // Add to animating items for fade out
+    try { await onConsume?.(itemId, delta, 'discarded'); } catch {}
     setAnimatingItems(prev => new Set(prev).add(itemId));
-    
-    try { 
-      await onConsume?.(itemId, delta, 'discarded');
-      // Warning haptic for discard
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-      
-      // Delay removal to allow animation to complete
-      setTimeout(() => {
-        setItems((prev) => prev.filter((i) => i.id !== itemId));
-        setAnimatingItems(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(itemId);
-          return newSet;
-        });
-      }, 300);
-      
-      // Refresh inventory to get latest data from server
-      refreshInventory();
-      // Notify other components of inventory change
-      triggerRefresh();
-    } catch (error) {
-      console.error('Error discarding item:', error);
-    }
-  }
-
-  async function handleDelete(itemId: string) {
-    // Haptic feedback for delete
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    
-    // Add to animating items for fade out
-    setAnimatingItems(prev => new Set(prev).add(itemId));
-    
-    try { 
-      await onDelete?.(itemId);
-      // Success haptic for successful delete
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      
-      // Delay removal to allow animation to complete
-      setTimeout(() => {
-        setItems((prev) => prev.filter((i) => i.id !== itemId));
-        setAnimatingItems(prev => {
-          const newSet = new Set(prev);
-          newSet.delete(itemId);
-          return newSet;
-        });
-      }, 300);
-      
-      // Refresh inventory to get latest data from server
-      refreshInventory();
-      // Notify other components of inventory change
-      triggerRefresh();
-    } catch {}
+    setTimeout(() => {
+      setItems((prev) => prev.filter((i) => i.id !== itemId));
+      setAnimatingItems(prev => {
+        const next = new Set(prev);
+        next.delete(itemId);
+        return next;
+      });
+    }, 300);
   }
 
   function openConfirm(itemId: string) {
     setConfirmItemId(itemId);
+  }
+
+  function openDetails(itemId: string) {
+    setDetailItemId(itemId);
   }
 
   function renderItem({ item }: { item: InventoryItem }) {
@@ -426,27 +298,10 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
       <AnimatedInventoryItem
         item={item}
         onDecrement={handleDecrement}
+        onIncrement={handleIncrement}
         onConfirm={openConfirm}
         isAnimating={isAnimating}
       />
-    );
-  }
-
-  if (loading) {
-    return (
-      <View style={styles.container}>
-        <ThemedText>Loading inventory...</ThemedText>
-      </View>
-    );
-  }
-
-  if (sorted.length === 0) {
-    return (
-      <View style={[styles.container, styles.emptyContainer]}>
-        <ThemedText style={styles.emptyTitle}>Your fridge is empty</ThemedText>
-        <ThemedText style={styles.emptySubtitle}>Add some food items to get started!</ThemedText>
-        <Recipes recipes={sampleRecipes} />
-      </View>
     );
   }
 
@@ -458,19 +313,7 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
         renderItem={renderItem}
         style={styles.list}
         contentContainerStyle={styles.listContent}
-        ListHeaderComponent={
-          <View>
-            <Recipes recipes={sampleRecipes} />
-          </View>
-        }
         showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={refreshInventory}
-            tintColor={Colors.light.tint}
-          />
-        }
       />
       {confirmItemId && (
         <Modal transparent animationType="fade" visible={!!confirmItemId} onRequestClose={() => setConfirmItemId(null)}>
@@ -482,21 +325,41 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
               <ThemedText type="subtitle">Before we remove it…</ThemedText>
               <ThemedText style={styles.modalText}>Where'd it end up?</ThemedText>
               <View style={styles.modalActionsRow}>
-                <AnimatedIconButton
-                  name="trash.fill"
+                <Pressable
                   onPress={() => { const id = confirmItemId; setConfirmItemId(null); if (id) { void handleDiscard(id); } }}
-                  style={[styles.modalChoiceSmall, styles.modalDiscard]}
+                  style={({ pressed }) => [styles.modalChoiceSmall, styles.modalDiscard, pressed ? { opacity: 0.9 } : undefined]}
                 >
+                  <IconSymbol name="trash.fill" size={18} color={Colors.light.danger} />
                   <ThemedText style={[styles.modalChoiceText, { color: Colors.light.danger }]}>Trash</ThemedText>
-                </AnimatedIconButton>
-                <AnimatedIconButton
-                  name="checkmark.circle.fill"
+                </Pressable>
+                <Pressable
                   onPress={() => { const id = confirmItemId; setConfirmItemId(null); if (id) { void handleUseAll(id); } }}
-                  style={[styles.modalChoiceLarge, styles.modalUsed]}
+                  style={({ pressed }) => [styles.modalChoiceLarge, styles.modalUsed, pressed ? { opacity: 0.95 } : undefined]}
                 >
+                  <IconSymbol name="checkmark.circle.fill" size={18} color={Colors.light.success} />
                   <ThemedText style={[styles.modalChoiceText, { color: Colors.light.success }]}>Used it!</ThemedText>
-                </AnimatedIconButton>
+                </Pressable>
               </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+      {detailItemId && (
+        <Modal transparent animationType="fade" visible={!!detailItemId} onRequestClose={() => setDetailItemId(null)}>
+          <View style={styles.modalBackdrop}>
+            <View style={styles.modalCard}>
+              <Pressable onPress={() => setDetailItemId(null)} hitSlop={10} style={({ pressed }) => [styles.modalClose, pressed ? { opacity: 0.75 } : undefined]}> 
+                <IconSymbol name="xmark" size={18} color={Colors.light.icon} />
+              </Pressable>
+              {(() => {
+                const detail = items.find((i) => i.id === detailItemId);
+                return (
+                  <>
+                    <ThemedText type="subtitle">{detail?.name ?? 'Item'}</ThemedText>
+                    <ThemedText style={styles.modalText}>Placeholder info</ThemedText>
+                  </>
+                );
+              })()}
             </View>
           </View>
         </Modal>
@@ -523,7 +386,6 @@ function ActionIcon({ name, onPress }: { name: string; onPress: () => void }) {
 
 const styles = StyleSheet.create({
   container: {
-    gap: 12,
     flex: 1,
   },
   header: {
@@ -536,10 +398,13 @@ const styles = StyleSheet.create({
   },
   listContent: {
     gap: 12,
-    paddingBottom: 8,
+    paddingBottom: 0,
   },
   card: {
     gap: 12,
+  },
+  placeholderText: {
+    fontSize: 12,
   },
   rowBetween: {
     flexDirection: 'row',
@@ -697,22 +562,6 @@ const styles = StyleSheet.create({
   },
   modalDiscard: {
     backgroundColor: Colors.light.dangerSurface,
-  },
-  emptyContainer: {
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: 60,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: Colors.light.text,
-    marginBottom: 8,
-  },
-  emptySubtitle: {
-    fontSize: 16,
-    color: Colors.light.subtleText,
-    textAlign: 'center',
   },
 });
 

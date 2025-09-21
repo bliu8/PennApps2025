@@ -16,6 +16,7 @@
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@react-navigation/elements": "^2.6.3",
     "@react-navigation/native": "^7.1.8",
+    "@zxing/library": "^0.21.3",
     "expo": "~54.0.9",
     "expo-blur": "^15.0.7",
     "expo-camera": "~17.0.8",

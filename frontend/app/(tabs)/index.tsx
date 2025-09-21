@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
-import { StyleSheet, View } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useMemo, useState, useRef } from 'react';
+import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Modal, Pressable } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 
@@ -12,18 +12,27 @@ import { useAuthContext } from '@/context/AuthContext';
 import Stats from '../../components/home/stats';
 import Alerts from '../../components/home/alerts';
 import Fridge from '../../components/home/fridge';
-import { consumeInventoryItem, deleteInventoryItem, updateInventoryQuantity } from '@/services/api';
-import { submitBarcode } from '@/services/api';
+import { consumeInventoryItem, deleteInventoryItem, updateInventoryQuantity, scanBarcode, BarcodeScanResult, addBarcodeToInventory } from '@/services/api';
 
 export default function HomeScreen() {
   const palette = Colors.light;
   // const greeting = useGreeting();
   const { user, accessToken } = useAuthContext();
-  const insets = useSafeAreaInsets();
   const [showScanner, setShowScanner] = useState(false);
   const [permission, requestPermission] = useCameraPermissions();
   const [scannedValue, setScannedValue] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [scannedItems, setScannedItems] = useState<BarcodeScanResult[]>([]);
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  // Refs for robust scan handling
+  const lastScanTimeRef = useRef(0);
+  const lastBarcodeValueRef = useRef<string | null>(null);
+  const lastBarcodeDetectionTimeRef = useRef(0);
+  const frameTrackingIntervalRef = useRef<number | null>(null);
+  const barcodeDetectionTimeoutRef = useRef<number | null>(null);
+  const barcodeLostTimeoutRef = useRef<number | null>(null);
+
   const displayName = useMemo(() => {
     if (user?.name) return user.name.split(' ')[0];
     if (user?.email) return user.email.split('@')[0];
@@ -40,7 +49,19 @@ export default function HomeScreen() {
         <Stats />
         
         <SurfaceCard
-          onPress={() => { if (permission?.granted) { setShowScanner(true); } else { void requestPermission().then(() => setShowScanner(true)); } }}
+          onPress={() => { 
+            if (permission?.granted) { 
+              setScannedItems([]);
+              setShowScanner(true); 
+            } else { 
+              void requestPermission().then((res) => {
+                if (res.granted) {
+                  setScannedItems([]);
+                  setShowScanner(true);
+                }
+              }); 
+            } 
+          }}
           style={[
             styles.uploadCard,
             styles.uploadShadow,
@@ -64,40 +85,167 @@ export default function HomeScreen() {
           </View>
         </SurfaceCard>
         
-        <Modal visible={showScanner} animationType="slide" onRequestClose={() => setShowScanner(false)} presentationStyle="fullScreen" statusBarTranslucent>
+        <Modal visible={showScanner} animationType="slide"         onRequestClose={() => {
+          // Clean up all tracking when closing scanner
+          if (frameTrackingIntervalRef.current) {
+            clearInterval(frameTrackingIntervalRef.current);
+            frameTrackingIntervalRef.current = null;
+          }
+          if (barcodeDetectionTimeoutRef.current) {
+            clearTimeout(barcodeDetectionTimeoutRef.current);
+            barcodeDetectionTimeoutRef.current = null;
+          }
+          if (barcodeLostTimeoutRef.current) {
+            clearTimeout(barcodeLostTimeoutRef.current);
+            barcodeLostTimeoutRef.current = null;
+          }
+          setShowScanner(false);
+        }}>
           <View style={{ flex: 1, backgroundColor: 'black' }}>
             <CameraView
               style={StyleSheet.absoluteFill}
               facing="back"
-              onBarcodeScanned={({ data }: any) => {
-                if (!data) return;
+              onCameraReady={() => {
+                // Reset barcode tracking when camera starts
+                lastBarcodeValueRef.current = null;
+                lastBarcodeDetectionTimeRef.current = 0;
+
+                // Start frame tracking to detect when barcode is lost
+                frameTrackingIntervalRef.current = setInterval(() => {
+                  const now = Date.now();
+                  // If no barcode detected for more than 1 second, consider it lost
+                  if (now - lastBarcodeDetectionTimeRef.current > 1000) {
+                    lastBarcodeValueRef.current = null;
+                  }
+                }, 200); // Check every 200ms
+              }}
+              onBarcodeScanned={({ data, bounds }: any) => {
+                console.log('Barcode detected:', { data, bounds });
+
+                const now = Date.now();
+                lastBarcodeDetectionTimeRef.current = now;
+
                 const value = String(data);
-                setScannedValue(value);
-                setShowScanner(false);
-                if (accessToken && !submitting) {
-                  setSubmitting(true);
-                  submitBarcode(accessToken, value).catch(() => {}).finally(() => setSubmitting(false));
+
+                // Clear any existing lost timeout
+                if (barcodeLostTimeoutRef.current) {
+                  clearTimeout(barcodeLostTimeoutRef.current);
+                }
+
+                // If this is the same barcode we just scanned, ignore it
+                if (lastBarcodeValueRef.current === value && now - lastScanTimeRef.current < 2000) {
+                  console.log('Barcode rejected - same barcode, too recent');
+                  return;
+                }
+
+                // If we have a different barcode in view, consider the previous one lost
+                if (lastBarcodeValueRef.current && lastBarcodeValueRef.current !== value) {
+                  lastBarcodeValueRef.current = null;
+                }
+
+                // If this is a new barcode or the previous one was lost and found again
+                if (lastBarcodeValueRef.current !== value) {
+                  // Set a timeout to consider this barcode lost if we don't see it again
+                  barcodeLostTimeoutRef.current = setTimeout(() => {
+                    lastBarcodeValueRef.current = null;
+                  }, 1500);
+
+                  lastBarcodeValueRef.current = value;
+                  lastScanTimeRef.current = now;
+                  setScannedValue(value);
+
+                  if (accessToken && !submitting) {
+                    setSubmitting(true);
+                    scanBarcode(accessToken, value)
+                      .then(async (result) => {
+                        if (result.found && result.product_info) {
+                          setScannedItems(prev => [result, ...prev]);
+                          console.log('Added to batch:', result.product_info.name);
+                        } else {
+                          console.log('Barcode not found in database');
+                        }
+                      })
+                      .catch((error) => {
+                        console.error('Barcode scan error:', error);
+                      })
+                      .finally(() => setSubmitting(false));
+                  }
                 }
               }}
               barcodeScannerSettings={{
                 barcodeTypes: ['ean13', 'ean8', 'upc_a', 'upc_e', 'code128'],
               } as any}
             />
-            <View style={{ position: 'absolute', top: insets.top + 12, left: 16, zIndex: 10 }}>
-              <Pressable
-                onPress={() => setShowScanner(false)} 
-                style={({ pressed }) => [{ 
-                  width: 44, 
-                  height: 44, 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  opacity: pressed ? 0.7 : 1,
-                  backgroundColor: 'rgba(0,0,0,0.5)',
-                  borderRadius: 22
-                }]}
-              >
-                <IconSymbol name="xmark.circle.fill" size={30} color={'white'} />
-              </Pressable>
+            <SafeAreaView style={{ position: 'absolute', top: 0, left: 0, right: 0, padding: 16, zIndex: 10 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Pressable 
+                  onPress={() => setShowScanner(false)} 
+                  style={({ pressed }) => [{ 
+                    width: 44, 
+                    height: 44, 
+                    alignItems: 'center', 
+                    justifyContent: 'center', 
+                    opacity: pressed ? 0.7 : 1,
+                    backgroundColor: 'rgba(0,0,0,0.5)',
+                    borderRadius: 22
+                  }]}
+                >
+                  <IconSymbol name="xmark.circle.fill" size={30} color={'white'} />
+                </Pressable>
+                
+                <View style={{ flex: 1, alignItems: 'center' }}>
+                  <ThemedText style={{ color: 'white', fontSize: 16, fontWeight: '600' }}>
+                    Items Scanned: {scannedItems.length}
+                  </ThemedText>
+                </View>
+                
+                {scannedItems.length > 0 && (
+                  <Pressable 
+                    onPress={async () => {
+                      setShowScanner(false);
+                      setIsProcessing(true);
+                      
+                      try {
+                        for (const item of scannedItems) {
+                          if (item.product_info && accessToken) {
+                            await addBarcodeToInventory(accessToken, item.barcode, item.product_info);
+                          }
+                        }
+                        console.log('All items processed successfully');
+                        setScannedItems([]);
+                      } catch (e) {
+                        console.error('Failed to process items:', e);
+                      } finally {
+                        setIsProcessing(false);
+                      }
+                    }}
+                    style={({ pressed }) => [{ 
+                      backgroundColor: Colors.light.tint,
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: 20,
+                      opacity: pressed ? 0.7 : 1
+                    }]}
+                  >
+                    <ThemedText style={{ color: 'white', fontSize: 14, fontWeight: '600' }}>
+                      Done
+                    </ThemedText>
+                  </Pressable>
+                )}
+              </View>
+            </SafeAreaView>
+          </View>
+        </Modal>
+
+        {/* Processing Modal */}
+        <Modal visible={isProcessing} transparent={true} animationType="fade">
+          <View style={styles.loadingOverlay}>
+            <View style={styles.loadingContent}>
+              <ActivityIndicator size="large" color={Colors.light.tint} style={{ marginBottom: 16 }} />
+              <ThemedText style={styles.loadingTitle}>Processing Items</ThemedText>
+              <ThemedText style={styles.loadingText}>
+                Using AI to organize your {scannedItems.length} item{scannedItems.length !== 1 ? 's' : ''} with expiration dates...
+              </ThemedText>
             </View>
           </View>
         </Modal>
@@ -161,6 +309,88 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 12 },
+  },
+  scanResultContainer: {
+    flex: 1,
+    padding: 20,
+  },
+  scanResultHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  closeButton: {
+    padding: 8,
+  },
+  scanResultContent: {
+    flex: 1,
+  },
+  barcodeText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#666',
+  },
+  productInfo: {
+    backgroundColor: '#f8f9fa',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 20,
+  },
+  productName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    color: '#333',
+  },
+  productBrand: {
+    fontSize: 16,
+    marginBottom: 4,
+    color: '#666',
+  },
+  productQuantity: {
+    fontSize: 16,
+    marginBottom: 4,
+    color: '#666',
+  },
+  productCategory: {
+    fontSize: 16,
+    marginBottom: 4,
+    color: '#666',
+  },
+  notFoundText: {
+    fontSize: 18,
+    textAlign: 'center',
+    color: '#999',
+    marginTop: 40,
+  },
+  loadingOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingContent: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    padding: 32,
+    alignItems: 'center',
+    maxWidth: 300,
+    width: '100%',
+  },
+  loadingTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  loadingText: {
+    fontSize: 16,
+    color: '#666',
+    textAlign: 'center',
+    lineHeight: 22,
   },
 });
 

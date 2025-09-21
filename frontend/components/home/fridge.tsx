@@ -326,7 +326,7 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
                 <IconSymbol name="xmark" size={18} color={Colors.light.icon} />
               </Pressable>
               <ThemedText type="subtitle">Before we remove it…</ThemedText>
-              <ThemedText style={styles.modalText}>Where'd it end up?</ThemedText>
+              <ThemedText style={styles.modalText}>Where&apos;d it end up?</ThemedText>
               <View style={styles.modalActionsRow}>
                 <Pressable
                   onPress={() => { const id = confirmItemId; setConfirmItemId(null); if (id) { void handleDiscard(id); } }}

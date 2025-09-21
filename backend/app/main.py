@@ -14,6 +14,7 @@ from .database import connect_to_mongo, close_mongo_connection
 from .models import PostingDB, GeoLocation, PickupWindow, ScanRecordDB, Account, InventoryItemDB
 from .repositories import account_repo, posting_repo, scan_repo, inventory_repo, user_metrics_repo
 from .utils import posting_db_to_api, scan_db_to_api, get_impact_narrative, inventory_db_to_api, calculate_food_waste_impact
+from .notification_service import notification_service
 
 # Load environment variables
 load_dotenv()  # This will load from backend/.env automatically
@@ -150,6 +151,27 @@ class UpdateQuantityPayload(BaseModel):
 class ConsumeItemPayload(BaseModel):
     quantity_delta: float
     reason: Literal["used", "discarded"]
+
+class BarcodeScanPayload(BaseModel):
+    code: str
+    symbology: Optional[str] = None
+
+class BarcodeProductInfo(BaseModel):
+    name: Optional[str] = None
+    brand: Optional[str] = None
+    categories: Optional[List[str]] = None
+    ingredients: Optional[List[str]] = None
+    allergens: Optional[List[str]] = None
+    nutrition_grade: Optional[str] = None
+    image_url: Optional[str] = None
+    quantity: Optional[str] = None
+    packaging: Optional[List[str]] = None
+
+class BarcodeScanResponse(BaseModel):
+    barcode: str
+    symbology: Optional[str] = None
+    product_info: Optional[BarcodeProductInfo] = None
+    found: bool
 
 
 @asynccontextmanager
@@ -499,6 +521,242 @@ async def delete_inventory_item(
         raise HTTPException(status_code=400, detail="Failed to delete item")
     
     return {"success": True}
+
+@app.post(f"{API_PREFIX}/scan/barcode", response_model=BarcodeScanResponse)
+async def scan_barcode(
+    payload: BarcodeScanPayload,
+    current_user: Auth0User = Depends(get_current_user)
+):
+    """Scan a barcode and query OpenFoodFacts for product information."""
+    import requests
+    
+    barcode = payload.code.strip()
+    symbology = payload.symbology
+    
+    # Validate barcode format (should be numeric and 8-14 digits for GTIN/EAN/UPC)
+    if not barcode.isdigit() or len(barcode) < 8 or len(barcode) > 14:
+        return BarcodeScanResponse(
+            barcode=barcode,
+            symbology=symbology,
+            product_info=None,
+            found=False
+        )
+    
+    try:
+        # Query OpenFoodFacts API
+        url = f"https://world.openfoodfacts.org/api/v0/product/{barcode}.json"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code != 200:
+            return BarcodeScanResponse(
+                barcode=barcode,
+                symbology=symbology,
+                product_info=None,
+                found=False
+            )
+        
+        data = response.json()
+        if data.get("status") != 1:
+            return BarcodeScanResponse(
+                barcode=barcode,
+                symbology=symbology,
+                product_info=None,
+                found=False
+            )
+        
+        product = data.get("product", {})
+        
+        # Extract product information
+        product_info = BarcodeProductInfo(
+            name=product.get("product_name"),
+            brand=product.get("brands"),
+            categories=product.get("categories_tags", [])[:5] if product.get("categories_tags") else None,
+            ingredients=product.get("ingredients_text_en", "").split(",")[:10] if product.get("ingredients_text_en") else None,
+            allergens=product.get("allergens_tags", []) if product.get("allergens_tags") else None,
+            nutrition_grade=product.get("nutrition_grade_fr"),
+            image_url=product.get("image_url"),
+            quantity=product.get("quantity"),
+            packaging=product.get("packaging_tags", [])[:5] if product.get("packaging_tags") else None
+        )
+        
+        return BarcodeScanResponse(
+            barcode=barcode,
+            symbology=symbology,
+            product_info=product_info,
+            found=True
+        )
+        
+    except Exception as e:
+        # Log error but don't expose it to client
+        print(f"Error querying OpenFoodFacts for barcode {barcode}: {e}")
+        return BarcodeScanResponse(
+            barcode=barcode,
+            symbology=symbology,
+            product_info=None,
+            found=False
+        )
+
+
+class AddToInventoryRequest(BaseModel):
+    barcode_data: BarcodeProductInfo
+    barcode: str
+
+
+class AddToInventoryResponse(BaseModel):
+    success: bool
+    inventory_item: Optional[dict] = None
+    error: Optional[str] = None
+
+
+class NotificationResponse(BaseModel):
+    success: bool
+    notification: Optional[dict] = None
+    message: str
+    items_found: int
+    urgent_count: int
+
+
+@app.post(f"{API_PREFIX}/inventory/add-from-barcode", response_model=AddToInventoryResponse)
+async def add_to_inventory_from_barcode(
+    request: AddToInventoryRequest,
+    current_user: Auth0User = Depends(get_current_user)
+):
+    """Process barcode data with Gemini and add to user's inventory."""
+    try:
+        from .gemini_service import gemini_processor
+        
+        # Get user account
+        account = await account_repo.find_by_auth0_id(current_user.sub)
+        if not account:
+            raise HTTPException(status_code=404, detail="Account not found")
+        
+        # Convert barcode data to dict for Gemini processing
+        barcode_dict = request.barcode_data.dict()
+        
+        # Process with Gemini to get inventory format
+        inventory_data = gemini_processor.process_barcode_to_inventory(barcode_dict)
+        
+        # Create inventory item
+        inventory_item = InventoryItemDB(
+            owner_id=account.id,
+            name=inventory_data['name'],
+            quantity=float(inventory_data['quantity']),
+            base_unit=inventory_data['base_unit'],
+            display_unit=inventory_data.get('display_unit'),
+            units_per_display=inventory_data.get('units_per_display'),
+            input_date=datetime.fromisoformat(inventory_data['input_date'].replace('Z', '+00:00')),
+            est_expiry_date=datetime.fromisoformat(inventory_data['est_expiry_date'].replace('Z', '+00:00')),
+            remaining_quantity=float(inventory_data['remaining_quantity']),
+            cost_estimate=inventory_data.get('cost_estimate'),
+            status='active'
+        )
+        
+        # Save to database
+        created_item = await inventory_repo.create_item(inventory_item)
+        
+        # Convert to API format
+        item_api = inventory_db_to_api(created_item)
+        
+        return AddToInventoryResponse(
+            success=True,
+            inventory_item=item_api.dict()
+        )
+        
+    except Exception as e:
+        print(f"Error adding barcode to inventory: {e}")
+        return AddToInventoryResponse(
+            success=False,
+            error=str(e)
+        )
+
+
+@app.post(f"{API_PREFIX}/notifications/generate", response_model=NotificationResponse)
+async def generate_notification(current_user: Auth0User = Depends(get_current_user)) -> NotificationResponse:
+    """Generate a food waste prevention notification for the current user."""
+    try:
+        account = await get_or_create_account(current_user)
+
+        # Get expiring items (within 10 days)
+        expiring_items = await notification_service.get_expiring_items(account.id, days_ahead=10)
+
+        if not expiring_items:
+            return NotificationResponse(
+                success=True,
+                notification=None,
+                message="No items expiring within 10 days",
+                items_found=0,
+                urgent_count=0
+            )
+
+        # Format for Gemini
+        inventory_data = notification_service.format_items_for_gemini(expiring_items)
+
+        # Generate notification
+        notification = notification_service.generate_notification(inventory_data)
+
+        if notification:
+            return NotificationResponse(
+                success=True,
+                notification=notification,
+                message="Notification generated successfully",
+                items_found=inventory_data["total_items"],
+                urgent_count=inventory_data["urgent_count"]
+            )
+        else:
+            return NotificationResponse(
+                success=False,
+                notification=None,
+                message="Failed to generate notification",
+                items_found=inventory_data["total_items"],
+                urgent_count=inventory_data["urgent_count"]
+            )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Notification generation failed: {e}")
+
+
+@app.get(f"{API_PREFIX}/notifications/preview", response_model=NotificationResponse)
+async def preview_notifications(current_user: Auth0User = Depends(get_current_user)) -> NotificationResponse:
+    """Preview what notifications would be generated for the current user."""
+    try:
+        account = await get_or_create_account(current_user)
+
+        # Get expiring items (within 10 days)
+        expiring_items = await notification_service.get_expiring_items(account.id, days_ahead=10)
+
+        if not expiring_items:
+            return NotificationResponse(
+                success=True,
+                notification=None,
+                message="No items expiring within 10 days",
+                items_found=0,
+                urgent_count=0
+            )
+
+        # Format for Gemini
+        inventory_data = notification_service.format_items_for_gemini(expiring_items)
+
+        # Return just the inventory data without generating notification
+        preview_notification = {
+            "title": "Preview Mode",
+            "body": f"Found {inventory_data['total_items']} items expiring soon, {inventory_data['urgent_count']} requiring attention",
+            "priority": "medium",
+            "suggested_actions": ["Check your inventory items", "Plan meals around expiring food"],
+            "generated_at": datetime.utcnow().isoformat(),
+            "inventory_summary": inventory_data
+        }
+
+        return NotificationResponse(
+            success=True,
+            notification=preview_notification,
+            message="Preview generated successfully",
+            items_found=inventory_data["total_items"],
+            urgent_count=inventory_data["urgent_count"]
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Preview generation failed: {e}")
+
 
 @app.get("/health")
 def health():

@@ -10,10 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from .auth import Auth0User, get_current_user
-from .database import connect_to_mongo, close_mongo_connection
-from .models import PostingDB, GeoLocation, PickupWindow, ScanRecordDB, Account, InventoryItemDB
-from .repositories import account_repo, posting_repo, scan_repo, inventory_repo, user_metrics_repo
-from .utils import posting_db_to_api, scan_db_to_api, get_impact_narrative, inventory_db_to_api, calculate_food_waste_impact
+from .database import connect_to_mongo, close_mongo_connection, get_database
+from .models import PostingDB, GeoLocation, PickupWindow, ScanRecordDB, Account, InventoryItemDB, RecipeDB, Recipe
+from .repositories import account_repo, posting_repo, scan_repo, inventory_repo, user_metrics_repo, recipe_repo
+from .utils import posting_db_to_api, scan_db_to_api, get_impact_narrative, inventory_db_to_api, calculate_food_waste_impact, recipe_db_to_api
 from .notification_service import notification_service
 
 # Load environment variables
@@ -615,6 +615,23 @@ class NotificationResponse(BaseModel):
     items_found: int
     urgent_count: int
 
+class RecipesResponse(BaseModel):
+    recipes: List[Recipe]
+
+class CreateRecipePayload(BaseModel):
+    name: str
+    description: str
+    ingredients: List[str]
+    instructions: List[str]
+    image_url: Optional[str] = None
+    cooking_time_minutes: Optional[int] = None
+    difficulty: Literal["easy", "medium", "hard"] = "easy"
+    servings: Optional[int] = None
+    tags: List[str] = []
+
+class GenerateRecipePayload(BaseModel):
+    inventory_items: List[dict]  # List of inventory items to base recipe on
+
 
 @app.post(f"{API_PREFIX}/inventory/add-from-barcode", response_model=AddToInventoryResponse)
 async def add_to_inventory_from_barcode(
@@ -757,6 +774,157 @@ async def preview_notifications(current_user: Auth0User = Depends(get_current_us
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Preview generation failed: {e}")
 
+
+@app.get(f"{API_PREFIX}/notifications", response_model=dict)
+async def get_notifications(current_user: Auth0User = Depends(get_current_user)) -> dict:
+    """Get all notifications for the current user."""
+    try:
+        account = await get_or_create_account(current_user)
+        
+        # Get notifications from database
+        db = get_database()
+        notifications_cursor = db.notifications.find({"user_id": account.id})
+        notifications = await notifications_cursor.to_list(length=None)
+        
+        # Convert to a clean format for JSON serialization
+        clean_notifications = []
+        for notification in notifications:
+            clean_notification = {
+                "id": str(notification["_id"]),
+                "title": notification.get("title", ""),
+                "body": notification.get("body", ""),
+                "type": notification.get("type", "nudge"),
+                "priority": notification.get("priority", "medium"),
+                "created_at": notification.get("created_at", "").isoformat() if hasattr(notification.get("created_at"), 'isoformat') else str(notification.get("created_at", "")),
+                "scheduled_for": notification.get("scheduled_for", "").isoformat() if hasattr(notification.get("scheduled_for"), 'isoformat') else str(notification.get("scheduled_for", "")),
+                "sent_at": notification.get("sent_at", "").isoformat() if hasattr(notification.get("sent_at"), 'isoformat') else str(notification.get("sent_at", "")),
+                "status": notification.get("status", "pending"),
+                "data": notification.get("data", {})
+            }
+            clean_notifications.append(clean_notification)
+        
+        return {"notifications": clean_notifications}
+        
+    except Exception as e:
+        print(f"Error in get_notifications: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to fetch notifications: {e}")
+
+
+# RECIPE ENDPOINTS
+
+@app.get(f"{API_PREFIX}/recipes", response_model=RecipesResponse)
+async def get_recipes(current_user: Auth0User = Depends(get_current_user)) -> RecipesResponse:
+    """Get all recipes for the current user."""
+    account = await get_or_create_account(current_user)
+    recipes_db = await recipe_repo.find_by_owner(account.id)
+    recipes = [recipe_db_to_api(recipe_db) for recipe_db in recipes_db]
+    return RecipesResponse(recipes=recipes)
+
+@app.post(f"{API_PREFIX}/recipes", response_model=dict)
+async def create_recipe(
+    payload: CreateRecipePayload,
+    current_user: Auth0User = Depends(get_current_user)
+):
+    """Create a new recipe."""
+    account = await get_or_create_account(current_user)
+    
+    recipe_db = RecipeDB(
+        owner_id=account.id,
+        name=payload.name,
+        description=payload.description,
+        ingredients=payload.ingredients,
+        instructions=payload.instructions,
+        image_url=payload.image_url,
+        cooking_time_minutes=payload.cooking_time_minutes,
+        difficulty=payload.difficulty,
+        servings=payload.servings,
+        tags=payload.tags
+    )
+    
+    created_recipe = await recipe_repo.create_recipe(recipe_db)
+    recipe_api = recipe_db_to_api(created_recipe)
+    
+    return {"recipe": recipe_api.dict()}
+
+@app.post(f"{API_PREFIX}/recipes/generate", response_model=dict)
+async def generate_recipe(
+    payload: GenerateRecipePayload,
+    current_user: Auth0User = Depends(get_current_user)
+):
+    """Generate a recipe based on inventory items using Gemini."""
+    try:
+        from .gemini_service import gemini_processor
+        
+        account = await get_or_create_account(current_user)
+        
+        # Process with Gemini to generate recipe
+        recipe_data = gemini_processor.generate_recipe_from_inventory(payload.inventory_items)
+        
+        # Create recipe in database
+        recipe_db = RecipeDB(
+            owner_id=account.id,
+            name=recipe_data['name'],
+            description=recipe_data['description'],
+            ingredients=recipe_data['ingredients'],
+            instructions=recipe_data['instructions'],
+            image_url=recipe_data.get('image_url'),
+            cooking_time_minutes=recipe_data.get('cooking_time_minutes'),
+            difficulty=recipe_data.get('difficulty', 'easy'),
+            servings=recipe_data.get('servings'),
+            tags=recipe_data.get('tags', [])
+        )
+        
+        created_recipe = await recipe_repo.create_recipe(recipe_db)
+        recipe_api = recipe_db_to_api(created_recipe)
+        
+        # Create a notification about the new recipe
+        try:
+            from .notification_service import notification_service
+            await notification_service.create_recipe_notification(
+                account.id,
+                created_recipe.name,
+                f"New recipe '{created_recipe.name}' generated from your inventory! Check it out in your recipes section."
+            )
+        except Exception as e:
+            print(f"Failed to create recipe notification: {e}")
+        
+        return {
+            "success": True,
+            "recipe": recipe_api.dict()
+        }
+        
+    except Exception as e:
+        print(f"Error generating recipe: {e}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+@app.delete(f"{API_PREFIX}/recipes/{{recipe_id}}", response_model=dict)
+async def delete_recipe(
+    recipe_id: str,
+    current_user: Auth0User = Depends(get_current_user)
+):
+    """Delete a recipe."""
+    account = await get_or_create_account(current_user)
+    
+    try:
+        recipe_object_id = ObjectId(recipe_id)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid recipe ID")
+    
+    # Verify ownership
+    recipe = await recipe_repo.find_by_id(recipe_object_id)
+    if not recipe or recipe.owner_id != account.id:
+        raise HTTPException(status_code=404, detail="Recipe not found")
+    
+    success = await recipe_repo.delete_recipe(recipe_object_id)
+    if not success:
+        raise HTTPException(status_code=400, detail="Failed to delete recipe")
+    
+    return {"success": True}
 
 @app.get("/health")
 def health():

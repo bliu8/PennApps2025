@@ -210,3 +210,36 @@ class InventoryItem(BaseModel):
     unitsPerDisplay: Optional[float] = None
     input_date: str  # ISO format
     est_expiry_date: str  # ISO format
+
+class RecipeDB(BaseModel):
+    id: PyObjectId = Field(default_factory=PyObjectId, alias="_id")
+    owner_id: PyObjectId
+    name: str
+    description: str
+    ingredients: List[str]
+    instructions: List[str]
+    image_url: Optional[str] = None
+    cooking_time_minutes: Optional[int] = None
+    difficulty: Literal["easy", "medium", "hard"] = "easy"
+    servings: Optional[int] = None
+    tags: List[str] = []  # e.g., ["breakfast", "vegetarian", "quick"]
+    created_at: datetime = Field(default_factory=datetime.utcnow)
+    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    
+    class Config:
+        populate_by_name = True
+        arbitrary_types_allowed = True
+        json_encoders = {ObjectId: str}
+
+class Recipe(BaseModel):
+    id: str
+    name: str
+    description: str
+    ingredients: List[str]
+    instructions: List[str]
+    image: Optional[str] = None
+    cooking_time_minutes: Optional[int] = None
+    difficulty: str = "easy"
+    servings: Optional[int] = None
+    tags: List[str] = []
+    created_at: str  # ISO format

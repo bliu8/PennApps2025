@@ -7,7 +7,7 @@ import geohash
 from math import radians, cos, sin, asin, sqrt
 
 from .database import get_database
-from .models import Account, PostingDB, Claim, Message, ScanRecordDB, GeoLocation, InventoryItemDB, UserMetrics
+from .models import Account, PostingDB, Claim, Message, ScanRecordDB, GeoLocation, InventoryItemDB, UserMetrics, RecipeDB
 
 class BaseRepository:
     def __init__(self, collection_name: str):
@@ -260,6 +260,7 @@ class InventoryRepository(BaseRepository):
         new_remaining = max(0, item.remaining_quantity - quantity_delta)
         update_data = {
             "remaining_quantity": new_remaining,
+            "quantity": new_remaining,  # Also update quantity to match remaining
             "updated_at": datetime.utcnow()
         }
         
@@ -348,6 +349,36 @@ class UserMetricsRepository(BaseRepository):
         updated_metrics = await self.get_or_create_metrics(owner_id)
         return updated_metrics
 
+class RecipeRepository(BaseRepository):
+    def __init__(self):
+        super().__init__("recipes")
+    
+    async def create_recipe(self, recipe: RecipeDB) -> RecipeDB:
+        result = await self.collection.insert_one(recipe.dict(by_alias=True))
+        recipe.id = result.inserted_id
+        return recipe
+    
+    async def find_by_owner(self, owner_id: ObjectId) -> List[RecipeDB]:
+        cursor = self.collection.find({"owner_id": owner_id}).sort("created_at", -1)
+        recipes = await cursor.to_list(length=None)
+        return [RecipeDB(**recipe) for recipe in recipes]
+    
+    async def find_by_id(self, recipe_id: ObjectId) -> Optional[RecipeDB]:
+        doc = await self.collection.find_one({"_id": recipe_id})
+        return RecipeDB(**doc) if doc else None
+    
+    async def update_recipe(self, recipe_id: ObjectId, update_data: Dict[str, Any]) -> bool:
+        update_data["updated_at"] = datetime.utcnow()
+        result = await self.collection.update_one(
+            {"_id": recipe_id},
+            {"$set": update_data}
+        )
+        return result.modified_count > 0
+    
+    async def delete_recipe(self, recipe_id: ObjectId) -> bool:
+        result = await self.collection.delete_one({"_id": recipe_id})
+        return result.deleted_count > 0
+
 # Repository instances
 account_repo = AccountRepository()
 posting_repo = PostingRepository()
@@ -356,3 +387,4 @@ message_repo = MessageRepository()
 scan_repo = ScanRepository()
 inventory_repo = InventoryRepository()
 user_metrics_repo = UserMetricsRepository()
+recipe_repo = RecipeRepository()

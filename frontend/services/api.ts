@@ -99,6 +99,38 @@ export async function fetchInventoryItems(accessToken: string): Promise<Inventor
   return data as InventoryItemsResponse;
 }
 
+// Notification types and API
+export interface Notification {
+  id: string;
+  title: string;
+  body: string;
+  type: 'nudge' | 'alert' | 'reminder';
+  priority: 'low' | 'medium' | 'high';
+  created_at: string;
+  scheduled_for: string;
+  sent_at?: string;
+  status: 'pending' | 'sent' | 'read';
+  data?: any;
+}
+
+export interface NotificationsResponse {
+  notifications: Notification[];
+}
+
+export async function fetchNotifications(accessToken: string): Promise<NotificationsResponse> {
+  const response = await fetch(`${API_BASE_URL}/notifications`, {
+    headers: buildHeaders(accessToken),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Unable to load notifications (${response.status})`);
+  }
+
+  const data = await response.json();
+  return data as NotificationsResponse;
+}
+
 // Add to inventory from barcode
 export interface AddToInventoryRequest {
   barcode_data: BarcodeProductInfo;
@@ -377,4 +409,73 @@ export function createImageFromUrl(url: string): Promise<HTMLImageElement> {
     img.onerror = reject;
     img.src = url;
   });
+}
+
+// Recipe management endpoints
+export interface Recipe {
+  id: string;
+  name: string;
+  description: string;
+  ingredients: string[];
+  instructions: string[];
+  image?: string;
+  cooking_time_minutes?: number;
+  difficulty: string;
+  servings?: number;
+  tags: string[];
+  created_at: string;
+}
+
+export interface RecipesResponse {
+  recipes: Recipe[];
+}
+
+export interface GenerateRecipeRequest {
+  inventory_items: Array<{
+    name: string;
+    quantity: number;
+    baseUnit: string;
+  }>;
+}
+
+export async function fetchRecipes(accessToken: string): Promise<RecipesResponse> {
+  const response = await fetch(`${API_BASE_URL}/recipes`, {
+    headers: buildHeaders(accessToken),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Unable to load recipes (${response.status})`);
+  }
+
+  const data = await response.json();
+  return data as RecipesResponse;
+}
+
+export async function generateRecipe(accessToken: string, inventoryItems: Array<{name: string; quantity: number; baseUnit: string}>): Promise<{success: boolean; recipe?: Recipe; error?: string}> {
+  const response = await fetch(`${API_BASE_URL}/recipes/generate`, {
+    method: 'POST',
+    headers: buildHeaders(accessToken, { 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ inventory_items: inventoryItems }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to generate recipe: ${response.status}`);
+  }
+
+  const data = await response.json();
+  return data;
+}
+
+export async function deleteRecipe(accessToken: string, recipeId: string): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/recipes/${encodeURIComponent(recipeId)}`, {
+    method: 'DELETE',
+    headers: buildHeaders(accessToken),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`Failed to delete recipe: ${response.status}`);
+  }
 }

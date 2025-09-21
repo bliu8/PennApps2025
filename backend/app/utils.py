@@ -3,7 +3,7 @@ from datetime import datetime
 from typing import Optional
 from math import radians, cos, sin, asin, sqrt
 
-from .models import PostingDB, Posting, Coordinates, ScanRecordDB, ScanRecord, InventoryItemDB, InventoryItem, UserMetrics
+from .models import PostingDB, Posting, Coordinates, ScanRecordDB, ScanRecord, InventoryItemDB, InventoryItem, UserMetrics, RecipeDB, Recipe
 
 def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     """Calculate the great circle distance between two points on earth in kilometers"""
@@ -150,3 +150,19 @@ def calculate_food_waste_impact(item: InventoryItemDB, reason: str = "used", qua
         "co2_prevented_kg": co2_prevented_kg,
         "money_saved_usd": money_saved
     }
+
+def recipe_db_to_api(recipe_db: RecipeDB) -> Recipe:
+    """Convert database recipe to API response format"""
+    return Recipe(
+        id=str(recipe_db.id),
+        name=recipe_db.name,
+        description=recipe_db.description,
+        ingredients=recipe_db.ingredients,
+        instructions=recipe_db.instructions,
+        image=recipe_db.image_url,
+        cooking_time_minutes=recipe_db.cooking_time_minutes,
+        difficulty=recipe_db.difficulty,
+        servings=recipe_db.servings,
+        tags=recipe_db.tags,
+        created_at=recipe_db.created_at.isoformat()
+    )

@@ -117,6 +117,33 @@ If no urgent items, return a general encouragement message.
             print(f"Error generating notification: {e}")
             return None
 
+    async def create_recipe_notification(self, user_id: ObjectId, recipe_name: str, message: str) -> bool:
+        """Create a notification about a new recipe."""
+        try:
+            db = get_database()
+            
+            notification = {
+                "user_id": user_id,
+                "title": "New Recipe Generated! 🍳",
+                "body": message,
+                "type": "recipe",
+                "priority": "medium",
+                "created_at": datetime.utcnow(),
+                "scheduled_for": datetime.utcnow(),
+                "status": "pending",
+                "data": {
+                    "recipe_name": recipe_name,
+                    "action": "view_recipes"
+                }
+            }
+            
+            result = await db.notifications.insert_one(notification)
+            return result.inserted_id is not None
+            
+        except Exception as e:
+            print(f"Error creating recipe notification: {e}")
+            return False
+
 
 # Global instance
 notification_service = NotificationService()

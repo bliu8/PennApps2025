@@ -7,7 +7,8 @@ import { IconSymbol } from '@/components/ui/icon-symbol';
 import { Colors } from '@/constants/theme';
 import Recipes from '../fridge/recipes';
 import { sampleRecipes } from '@/constants/mock-data';
-import { fetchInventoryItems, InventoryItem as APIInventoryItem } from '@/services/api';
+import { fetchInventoryItems, InventoryItem as APIInventoryItem, fetchRecipes } from '@/services/api';
+import { Recipe } from '../fridge/recipes';
 import { useInventoryRefresh } from '@/context/InventoryRefreshContext';
 
 // Use the API type directly
@@ -160,6 +161,8 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
   const [confirmItemId, setConfirmItemId] = useState<string | null>(null);
   const [detailItemId, setDetailItemId] = useState<string | null>(null);
   const [animatingItems, setAnimatingItems] = useState<Set<string>>(new Set());
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [loadingRecipes, setLoadingRecipes] = useState(true);
 
   const fetchItems = useCallback(async () => {
     if (!accessToken) {
@@ -184,15 +187,58 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
     }
   }, [accessToken]);
 
+  const fetchRecipesData = useCallback(async () => {
+    if (!accessToken) {
+      setRecipes([]);
+      setLoadingRecipes(false);
+      return;
+    }
+
+    try {
+      setLoadingRecipes(true);
+      console.log('Fetching recipes...');
+      const response = await fetchRecipes(accessToken);
+      console.log('Fetched recipes:', response.recipes);
+      
+      // Convert API recipes to component Recipe type
+      const convertedRecipes: Recipe[] = response.recipes.map(apiRecipe => ({
+        id: apiRecipe.id,
+        name: apiRecipe.name,
+        description: apiRecipe.description,
+        ingredients: apiRecipe.ingredients,
+        instructions: apiRecipe.instructions,
+        image: apiRecipe.image,
+        cooking_time_minutes: apiRecipe.cooking_time_minutes,
+        difficulty: apiRecipe.difficulty,
+        servings: apiRecipe.servings,
+        tags: apiRecipe.tags,
+        created_at: apiRecipe.created_at
+      }));
+      
+      setRecipes(convertedRecipes);
+    } catch (err) {
+      console.error('Failed to fetch recipes:', err);
+      setRecipes([]);
+    } finally {
+      setLoadingRecipes(false);
+    }
+  }, [accessToken]);
+
   useEffect(() => {
     fetchItems();
-  }, [fetchItems]);
+    fetchRecipesData();
+  }, [fetchItems, fetchRecipesData]);
 
   // Listen for inventory refresh events
   useEffect(() => {
-    const removeListener = addRefreshListener(fetchItems);
+    const handleRefresh = () => {
+      fetchItems();
+      fetchRecipesData(); // Also refresh recipes when inventory changes
+    };
+    
+    const removeListener = addRefreshListener(handleRefresh);
     return removeListener;
-  }, [addRefreshListener, fetchItems]);
+  }, [addRefreshListener, fetchItems, fetchRecipesData]);
 
   const sorted = useMemo(() => {
     return [...items].sort((a, b) => {
@@ -230,9 +276,19 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
       openConfirm(itemId);
       return;
     }
-    const newQty = Math.max(0, target.quantity - 1);
+    const delta = 1; // Always decrement by 1
+    const newQty = Math.max(0, target.quantity - delta);
+    
     updateQuantityLocal(itemId, newQty);
-    try { await onEditQuantity?.(itemId, newQty); } catch {}
+    
+    // Track impact metrics for the decremented amount
+    try { 
+      await onConsume?.(itemId, delta, 'used'); // This will update both quantity and track impact
+    } catch (error) {
+      console.error('Failed to track decrement impact:', error);
+      // Revert local state if API call failed
+      updateQuantityLocal(itemId, target.quantity);
+    }
   }
 
   async function handleUseAll(itemId: string) {
@@ -324,7 +380,7 @@ export function Fridge({ accessToken, onEditQuantity, onConsume, onDelete }: Fri
         renderItem={renderItem}
         style={styles.list}
         contentContainerStyle={styles.listContent}
-        ListHeaderComponent={<Recipes recipes={sampleRecipes} />}
+        ListHeaderComponent={<Recipes recipes={recipes || []} />}
         showsVerticalScrollIndicator={false}
       />
       {confirmItemId && (

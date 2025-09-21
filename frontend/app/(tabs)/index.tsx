@@ -13,6 +13,7 @@ import { useInventoryRefresh } from '@/context/InventoryRefreshContext';
 import Stats from '../../components/home/stats';
 import Alerts from '../../components/home/alerts';
 import Fridge from '../../components/home/fridge';
+import { NotificationPopup } from '../../components/notifications/notification-popup';
 import { consumeInventoryItem, deleteInventoryItem, updateInventoryQuantity, scanBarcode, BarcodeScanResult, addBarcodeToInventory } from '@/services/api';
 
 export default function HomeScreen() {
@@ -26,6 +27,7 @@ export default function HomeScreen() {
   const [submitting, setSubmitting] = useState(false);
   const [scannedItems, setScannedItems] = useState<BarcodeScanResult[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
   
   // Refs for robust scan handling
   const lastScanTimeRef = useRef(0);
@@ -46,6 +48,12 @@ export default function HomeScreen() {
       <View style={[styles.container, { backgroundColor: palette.background }]}> 
         <View style={styles.header}>
             <ThemedText type="title">Hey {displayName}!</ThemedText>
+            <Pressable 
+              onPress={() => setShowNotifications(true)}
+              style={({ pressed }) => [styles.notificationButton, pressed ? { opacity: 0.7 } : undefined]}
+            >
+              <IconSymbol name="bell.fill" size={24} color={Colors.light.tint} />
+            </Pressable>
         </View>
         <Alerts />
         <Stats />
@@ -298,6 +306,14 @@ export default function HomeScreen() {
             </View>
           </View>
         </Modal>
+
+        {/* Notification Popup */}
+        {showNotifications && (
+          <NotificationPopup
+            accessToken={accessToken || undefined}
+            onClose={() => setShowNotifications(false)}
+          />
+        )}
       </View>
     </SafeAreaView>
   );
@@ -316,9 +332,14 @@ const styles = StyleSheet.create({
   },
   header: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     justifyContent: 'space-between',
     gap: 12,
+  },
+  notificationButton: {
+    padding: 8,
+    borderRadius: 8,
+    backgroundColor: Colors.light.cardMuted,
   },
   subtitle: {
     marginTop: 8,

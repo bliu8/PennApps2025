@@ -9,11 +9,17 @@ import { Colors } from '@/constants/theme';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 
 export type Recipe = {
+    id: string;
     name: string;
     description: string;
     ingredients: string[];
     instructions: string[];
     image?: string | null;
+    cooking_time_minutes?: number;
+    difficulty: string;
+    servings?: number;
+    tags: string[];
+    created_at: string;
 };
 
 type RecipesProps = {
@@ -28,14 +34,25 @@ export default function Recipes({ recipes }: RecipesProps) {
     const containerWidth = measuredContainerWidth ?? Math.max(0, safeFrame.width);
     const cardWidth = Math.max(0, containerWidth);
 
-    const data = useMemo(() => recipes.slice(0, 3), [recipes]);
+    const data = useMemo(() => {
+        if (!recipes || recipes.length === 0) return [];
+        
+        // Sort recipes by created_at in descending order (newest first)
+        const sortedRecipes = [...recipes].sort((a, b) => {
+            const dateA = new Date(a.created_at).getTime();
+            const dateB = new Date(b.created_at).getTime();
+            return dateB - dateA; // Newest first
+        });
+        
+        // Take the 3 latest recipes
+        return sortedRecipes.slice(0, 3);
+    }, [recipes]);
     const [active, setActive] = useState<Recipe | null>(null);
     const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
 
-    if (!data || data.length === 0) return null;
-
     function renderItem({ item, index }: { item: Recipe; index: number }) {
         const showImage = !!item.image && !failedImages[item.name];
+        console.log(`Recipe ${item.name}: image=${item.image}, showImage=${showImage}`);
         return (
             <SurfaceCard
                 style={[
@@ -52,7 +69,11 @@ export default function Recipes({ recipes }: RecipesProps) {
                                 style={styles.thumb}
                                 contentFit="cover"
                                 transition={150}
-                                onError={() => setFailedImages((prev) => ({ ...prev, [item.name]: true }))}
+                                onError={(error) => {
+                                    console.log(`Image load error for ${item.name}:`, error);
+                                    setFailedImages((prev) => ({ ...prev, [item.name]: true }));
+                                }}
+                                onLoad={() => console.log(`Image loaded successfully for ${item.name}`)}
                             />
                         ) : (
                             <IconSymbol name="photo" size={22} color={Colors.light.icon} />
@@ -80,15 +101,19 @@ export default function Recipes({ recipes }: RecipesProps) {
     }
 
     const snapOffsets = useMemo(() => {
+        if (!data || data.length === 0) return [];
         return data.map((_, i) => baseHorizontalPadding + i * (cardWidth + baseHorizontalPadding));
     }, [data, cardWidth]);
+
+    // Early return after all hooks are defined
+    if (!data || data.length === 0) return null;
 
     return (
         <SafeAreaView style={{ paddingTop: 4}} edges={['left', 'right']}>
             <View onLayout={({ nativeEvent }) => setMeasuredContainerWidth(nativeEvent.layout.width)}>
             <FlatList
                 data={data}
-                keyExtractor={(it) => it.name}
+                keyExtractor={(it) => it.id}
                 renderItem={renderItem}
                 horizontal
                 showsHorizontalScrollIndicator={false}

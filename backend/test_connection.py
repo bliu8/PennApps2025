@@ -17,7 +17,7 @@ async def test_connection():
         await connect_to_mongo()
         
         db = get_database()
-        if db:
+        if db is not None:
             print("✅ Successfully connected to MongoDB Atlas!")
             
             # Test basic operations
